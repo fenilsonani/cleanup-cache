@@ -113,9 +113,9 @@ func (m *CategoryViewModel) Update(msg tea.Msg) (*CategoryViewModel, tea.Cmd) {
 			if len(m.categories) > 0 {
 				m.cursor = len(m.categories) - 1
 			}
-		case "space":
+		case "space", " ":
 			// Toggle selection
-			if m.cursor < len(m.categories) {
+			if m.cursor >= 0 && m.cursor < len(m.categories) {
 				m.categories[m.cursor].Selected = !m.categories[m.cursor].Selected
 			}
 		case "x":
@@ -159,7 +159,11 @@ func (m *CategoryViewModel) View() string {
 	b.WriteString("\n\n")
 
 	// Instructions
-	b.WriteString(styles.HelpStyle.Render("Use ↑/↓ to navigate, space to toggle, enter to continue"))
+	helpText := "↑/↓:navigate  space:toggle  x:toggle+down  ctrl+a:all  ctrl+d:none  enter:continue"
+	if m.width < 80 {
+		helpText = "↑/↓:move  space:toggle  enter:continue"
+	}
+	b.WriteString(styles.HelpStyle.Render(helpText))
 	b.WriteString("\n\n")
 
 	// Category list
