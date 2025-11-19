@@ -176,6 +176,9 @@ download_and_install() {
     print_info "Extracting binary..."
     tar -xzf cleanup.tar.gz
 
+    # Rename extracted binary to standard name
+    mv "cleanup-${OS}-${ARCH}" "$BINARY_NAME"
+
     # Install
     print_info "Installing to $INSTALL_DIR..."
     $USE_SUDO mv "$BINARY_NAME" "$INSTALL_DIR/"
