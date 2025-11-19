@@ -5,11 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/progress"
+	bubblesProgress "github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fenilsonani/cleanup-cache/internal/cleaner"
 	"github.com/fenilsonani/cleanup-cache/internal/config"
+	"github.com/fenilsonani/cleanup-cache/internal/progress"
 	"github.com/fenilsonani/cleanup-cache/internal/scanner"
 	"github.com/fenilsonani/cleanup-cache/internal/ui/styles"
 	"github.com/fenilsonani/cleanup-cache/pkg/utils"
@@ -17,14 +18,19 @@ import (
 
 // CleanupViewModel handles the cleanup progress view
 type CleanupViewModel struct {
-	files      []scanner.FileInfo
-	config     *config.Config
-	spinner    spinner.Model
-	progress   progress.Model
-	current    int
-	startTime  time.Time
-	result     *cleaner.CleanResult
-	done       bool
+	files        []scanner.FileInfo
+	config       *config.Config
+	spinner      spinner.Model
+	progressBar  bubblesProgress.Model
+	current      int
+	currentFile  string
+	deletionRate float64 // files per second
+	startTime    time.Time
+	result       *cleaner.CleanResult
+	done         bool
+	cleaner      *cleaner.Cleaner
+	progressCh   <-chan interface{}
+	resultCh     chan *cleaner.CleanResult
 }
 
 // NewCleanupViewModel creates a new cleanup view model
@@ -33,22 +39,40 @@ func NewCleanupViewModel(files []scanner.FileInfo, cfg *config.Config) *CleanupV
 	s.Spinner = spinner.Dot
 	s.Style = styles.SelectedStyle
 
-	p := progress.New(progress.WithDefaultGradient())
+	p := bubblesProgress.New(bubblesProgress.WithDefaultGradient())
 
 	return &CleanupViewModel{
-		files:     files,
-		config:    cfg,
-		spinner:   s,
-		progress:  p,
-		startTime: time.Now(),
+		files:       files,
+		config:      cfg,
+		spinner:     s,
+		progressBar: p,
+		startTime:   time.Now(),
 	}
 }
 
 // Init initializes the cleanup view
 func (m *CleanupViewModel) Init() tea.Cmd {
+	// Create cleaner and subscribe to progress
+	m.cleaner = cleaner.New(m.config)
+	m.progressCh = m.cleaner.GetProgressReporter().Subscribe()
+	m.resultCh = make(chan *cleaner.CleanResult, 1)
+
+	// Start cleanup in background
+	go func() {
+		// Create a ScanResult with selected files
+		scanResult := &scanner.ScanResult{
+			Files: m.files,
+		}
+
+		// Perform cleanup
+		result, _ := m.cleaner.Clean(scanResult)
+		m.resultCh <- result
+		close(m.resultCh)
+	}()
+
 	return tea.Batch(
 		m.spinner.Tick,
-		m.performCleanup,
+		m.pollProgress,
 	)
 }
 
@@ -60,9 +84,24 @@ func (m *CleanupViewModel) Update(msg tea.Msg) (*CleanupViewModel, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 
+	case CleanupProgressMsg:
+		// Update progress
+		m.current = msg.DeletedFiles
+		m.currentFile = msg.CurrentFile
+		m.deletionRate = msg.Rate
+		// Continue polling
+		return m, m.pollProgress
+
 	case CleanupCompleteMsg:
 		m.done = true
 		m.result = msg.Result.(*cleaner.CleanResult)
+		return m, nil
+
+	case CleanupPollMsg:
+		// Continue polling for progress
+		if !m.done {
+			return m, m.pollProgress
+		}
 		return m, nil
 	}
 
@@ -79,15 +118,36 @@ func (m *CleanupViewModel) View() string {
 	if !m.done {
 		b.WriteString(m.spinner.View())
 		b.WriteString(" Deleting files... ")
-		b.WriteString(styles.DimStyle.Render(fmt.Sprintf("(%s)", time.Since(m.startTime).Round(time.Second))))
+		elapsed := time.Since(m.startTime).Round(time.Second)
+		b.WriteString(styles.DimStyle.Render(fmt.Sprintf("(%s)", elapsed)))
 		b.WriteString("\n\n")
+
+		// Current file being deleted
+		if m.currentFile != "" {
+			b.WriteString(styles.DimStyle.Render("Current: "))
+			b.WriteString(styles.FilePathStyle.Render(truncatePathCleanup(m.currentFile, 60)))
+			b.WriteString("\n\n")
+		}
 
 		// Progress bar
 		percent := float64(m.current) / float64(len(m.files))
-		b.WriteString(m.progress.ViewAs(percent))
+		b.WriteString(m.progressBar.ViewAs(percent))
 		b.WriteString("\n\n")
 
+		// Progress with rate and ETA
 		b.WriteString(fmt.Sprintf("Progress: %d/%d files", m.current, len(m.files)))
+
+		if m.deletionRate > 0 {
+			b.WriteString(fmt.Sprintf(" • %s/s", styles.DimStyle.Render(fmt.Sprintf("%.1f files", m.deletionRate))))
+
+			// Calculate ETA
+			if m.current > 0 && m.current < len(m.files) {
+				remaining := len(m.files) - m.current
+				etaSeconds := float64(remaining) / m.deletionRate
+				eta := time.Duration(etaSeconds) * time.Second
+				b.WriteString(fmt.Sprintf(" • ETA: %s", styles.DimStyle.Render(eta.Round(time.Second).String())))
+			}
+		}
 	} else {
 		b.WriteString(styles.SuccessStyle.Render("✓ Cleanup Complete!"))
 		b.WriteString("\n\n")
@@ -107,18 +167,56 @@ func (m *CleanupViewModel) View() string {
 	return b.String()
 }
 
-// performCleanup performs the actual cleanup
-func (m *CleanupViewModel) performCleanup() tea.Msg {
-	// Create cleaner
-	clnr := cleaner.New(m.config)
+// truncatePathCleanup truncates file paths for display
+func truncatePathCleanup(path string, maxLen int) string {
+	if len(path) <= maxLen {
+		return path
+	}
+	return "..." + path[len(path)-maxLen+3:]
+}
 
-	// Create a ScanResult with selected files
-	scanResult := &scanner.ScanResult{
-		Files: m.files,
+// pollProgress polls for cleanup progress updates
+func (m *CleanupViewModel) pollProgress() tea.Msg {
+	// Check if cleanup is complete
+	select {
+	case result := <-m.resultCh:
+		// Cleanup finished
+		if m.cleaner != nil {
+			m.cleaner.GetProgressReporter().Unsubscribe(m.progressCh)
+		}
+		return CleanupCompleteMsg{Result: result}
+	case update := <-m.progressCh:
+		// Progress update received
+		if cleanProgress, ok := update.(*progress.CleanProgress); ok {
+			// Calculate deletion rate
+			elapsed := time.Since(m.startTime).Seconds()
+			rate := 0.0
+			if elapsed > 0 {
+				rate = float64(cleanProgress.DeletedFiles) / elapsed
+			}
+
+			return CleanupProgressMsg{
+				CurrentFile:  cleanProgress.CurrentFile,
+				DeletedFiles: cleanProgress.DeletedFiles,
+				TotalFiles:   cleanProgress.TotalFiles,
+				Rate:         rate,
+			}
+		}
+	case <-time.After(100 * time.Millisecond):
+		// Timeout - continue polling
+		return CleanupPollMsg{}
 	}
 
-	// Perform cleanup
-	result, _ := clnr.Clean(scanResult)
-
-	return CleanupCompleteMsg{Result: result}
+	return CleanupPollMsg{}
 }
+
+// CleanupProgressMsg is sent during cleanup to update progress
+type CleanupProgressMsg struct {
+	CurrentFile  string
+	DeletedFiles int
+	TotalFiles   int
+	Rate         float64 // files per second
+}
+
+// CleanupPollMsg signals to continue polling
+type CleanupPollMsg struct{}

@@ -68,57 +68,86 @@ func (s *Scanner) ScanAll() (*ScanResult, error) {
 		Errors: []error{},
 	}
 
+	startTime := time.Now()
+
+	// Count enabled categories
+	categoriesTotal := 0
+	if s.config.Categories.Cache {
+		categoriesTotal++
+	}
+	if s.config.Categories.Temp {
+		categoriesTotal++
+	}
+	if s.config.Categories.Logs {
+		categoriesTotal++
+	}
+	if s.config.Categories.Duplicates {
+		categoriesTotal++
+	}
+	if s.config.Categories.Downloads {
+		categoriesTotal++
+	}
+	if s.config.Categories.PackageManagers {
+		categoriesTotal++
+	}
+
+	categoriesDone := 0
+
 	// Channel to collect scan results
 	resultChan := make(chan *ScanResult, 6) // Max 6 categories
 	var wg sync.WaitGroup
+	var mu sync.Mutex // Protect result and categoriesDone
+
+	// Helper to report and run a category scan
+	runCategoryScan := func(category string, scanFunc func() *ScanResult) {
+		defer wg.Done()
+
+		// Report starting this category
+		mu.Lock()
+		s.reportScanProgress(progress.PhaseScanning, category, "", result.TotalCount, result.TotalSize, categoriesTotal, categoriesDone, startTime)
+		mu.Unlock()
+
+		// Run the scan
+		scanResult := scanFunc()
+
+		// Send result and update progress
+		resultChan <- scanResult
+
+		mu.Lock()
+		categoriesDone++
+		s.reportScanProgress(progress.PhaseScanning, category, "", result.TotalCount, result.TotalSize, categoriesTotal, categoriesDone, startTime)
+		mu.Unlock()
+	}
 
 	// Scan categories in parallel
 	if s.config.Categories.Cache {
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			resultChan <- s.ScanCache()
-		}()
+		go runCategoryScan("cache", s.ScanCache)
 	}
 
 	if s.config.Categories.Temp {
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			resultChan <- s.ScanTemp()
-		}()
+		go runCategoryScan("temp", s.ScanTemp)
 	}
 
 	if s.config.Categories.Logs {
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			resultChan <- s.ScanLogs()
-		}()
+		go runCategoryScan("logs", s.ScanLogs)
 	}
 
 	if s.config.Categories.Duplicates {
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			resultChan <- s.ScanDuplicates()
-		}()
+		go runCategoryScan("duplicates", s.ScanDuplicates)
 	}
 
 	if s.config.Categories.Downloads {
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			resultChan <- s.ScanDownloads()
-		}()
+		go runCategoryScan("downloads", s.ScanDownloads)
 	}
 
 	if s.config.Categories.PackageManagers {
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			resultChan <- s.ScanPackageManagers()
-		}()
+		go runCategoryScan("package_managers", s.ScanPackageManagers)
 	}
 
 	// Close channel when all scans complete
@@ -127,13 +156,15 @@ func (s *Scanner) ScanAll() (*ScanResult, error) {
 		close(resultChan)
 	}()
 
-	// Collect results (with mutex for thread safety)
-	var mu sync.Mutex
+	// Collect results
 	for scanResult := range resultChan {
 		mu.Lock()
 		result.merge(scanResult)
 		mu.Unlock()
 	}
+
+	// Report completion
+	s.reportScanProgress(progress.PhaseComplete, "", "", result.TotalCount, result.TotalSize, categoriesTotal, categoriesDone, startTime)
 
 	return result, nil
 }

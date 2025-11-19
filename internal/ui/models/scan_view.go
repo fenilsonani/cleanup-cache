@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fenilsonani/cleanup-cache/internal/config"
 	"github.com/fenilsonani/cleanup-cache/internal/platform"
+	"github.com/fenilsonani/cleanup-cache/internal/progress"
 	"github.com/fenilsonani/cleanup-cache/internal/scanner"
 	"github.com/fenilsonani/cleanup-cache/internal/ui/styles"
 	"github.com/fenilsonani/cleanup-cache/pkg/utils"
@@ -24,6 +25,9 @@ type ScanViewModel struct {
 	startTime    time.Time
 	currentDir   string
 	progress     map[string]*CategoryProgress
+	scanner      *scanner.Scanner
+	progressCh   <-chan interface{}
+	resultCh     chan *scanner.ScanResult
 }
 
 // CategoryProgress tracks progress for each category
@@ -52,9 +56,21 @@ func NewScanViewModel(cfg *config.Config, platformInfo *platform.Info) *ScanView
 
 // Init initializes the scan view
 func (m *ScanViewModel) Init() tea.Cmd {
+	// Create scanner and subscribe to progress
+	m.scanner = scanner.New(m.config, m.platformInfo)
+	m.progressCh = m.scanner.GetProgressReporter().Subscribe()
+	m.resultCh = make(chan *scanner.ScanResult, 1)
+
+	// Start scan in background
+	go func() {
+		result, _ := m.scanner.ScanAll()
+		m.resultCh <- result
+		close(m.resultCh)
+	}()
+
 	return tea.Batch(
 		m.spinner.Tick,
-		m.performScan,
+		m.pollProgress,
 	)
 }
 
@@ -76,11 +92,19 @@ func (m *ScanViewModel) Update(msg tea.Msg) (*ScanViewModel, tea.Cmd) {
 		m.progress[msg.Category].Count = msg.Count
 		m.progress[msg.Category].Size = msg.Size
 		m.currentDir = msg.CurrentPath
-		return m, nil
+		// Continue polling
+		return m, m.pollProgress
 
 	case ScanCompleteMsg:
 		m.scanning = false
 		m.result = msg.Result
+		return m, nil
+
+	case PollMsg:
+		// Continue polling for progress
+		if m.scanning {
+			return m, m.pollProgress
+		}
 		return m, nil
 	}
 
@@ -155,19 +179,36 @@ func (m *ScanViewModel) View() string {
 	return b.String()
 }
 
-// performScan performs the actual scanning
-func (m *ScanViewModel) performScan() tea.Msg {
-	// Create scanner
-	scnr := scanner.New(m.config, m.platformInfo)
-
-	// Perform scan
-	result, err := scnr.ScanAll()
-	if err != nil {
-		return ScanCompleteMsg{Result: result} // Return partial results
+// pollProgress polls for scan progress updates
+func (m *ScanViewModel) pollProgress() tea.Msg {
+	// Check if scan is complete
+	select {
+	case result := <-m.resultCh:
+		// Scan finished
+		if m.scanner != nil {
+			m.scanner.GetProgressReporter().Unsubscribe(m.progressCh)
+		}
+		return ScanCompleteMsg{Result: result}
+	case update := <-m.progressCh:
+		// Progress update received
+		if scanProgress, ok := update.(*progress.ScanProgress); ok {
+			return ScanProgressMsg{
+				Category:    scanProgress.Category,
+				Count:       scanProgress.FilesFound,
+				Size:        scanProgress.TotalSize,
+				CurrentPath: scanProgress.CurrentPath,
+			}
+		}
+	case <-time.After(100 * time.Millisecond):
+		// Timeout - continue polling
+		return PollMsg{}
 	}
 
-	return ScanCompleteMsg{Result: result}
+	return PollMsg{}
 }
+
+// PollMsg signals to continue polling
+type PollMsg struct{}
 
 // ScanProgressMsg is sent during scanning to update progress
 type ScanProgressMsg struct {
