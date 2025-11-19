@@ -1,0 +1,28 @@
+# Binaries
+cleanup
+cleanup-*
+
+# Build artifacts
+*.tar.gz
+*.zip
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+*.out
+coverage.html
+
+# Temporary files
+tmp/
+temp/
