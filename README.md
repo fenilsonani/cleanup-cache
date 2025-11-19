@@ -4,13 +4,15 @@ A powerful, safe, and intelligent CLI tool to clean up your Mac or Linux system 
 
 ## ✨ Features
 
-- 🔍 **Smart Scanning** - Intelligently identifies cleanable files across multiple categories
-- 🎯 **Interactive Mode** - Full-featured TUI for browsing and selecting files
-- 🔒 **Safe & Secure** - Multiple safety layers to prevent accidental deletion of important files
-- 🚀 **Fast & Efficient** - Parallel scanning and optimized operations
+- 🔍 **Smart Scanning** - Intelligently identifies cleanable files across multiple categories with real-time progress
+- 🎯 **Advanced Interactive Mode** - Professional TUI with sorting, filtering, search, bulk operations, and visual selection
+- 🔒 **Safe & Secure** - Multiple safety layers with risk indicators (LOW/MEDIUM/HIGH) before deletion
+- 🚀 **Fast & Efficient** - Parallel scanning with live progress updates and ETA
 - 📊 **Detailed Reports** - Multiple output formats (summary, table, JSON, YAML)
-- 🔐 **Permission Management** - Smart sudo handling for system files
+- 🔐 **Permission Management** - Smart sudo handling for system files with pre-flight analysis
 - ⚙️ **Highly Configurable** - Customize what gets cleaned and how
+- 📱 **Responsive Design** - Adapts to any terminal size with smart content truncation
+- ⌨️ **Vim-Style Navigation** - Familiar key bindings (gg, G, j/k, visual mode)
 
 ## 📦 Installation
 
@@ -73,11 +75,51 @@ cleanup scan --output json
 ```
 
 #### `cleanup interactive`
-Launch interactive TUI mode with file browser and selection.
+Launch interactive TUI mode with advanced file browser and selection.
 
 ```bash
 cleanup interactive
 cleanup interactive --dry-run    # Preview mode
+```
+
+**Interactive Mode Features:**
+- 🔄 **Real-time progress** - Live updates during scan and cleanup with ETA
+- 📊 **Advanced file browser** - Sort, filter, and search through files
+- 🎨 **Professional table layout** - Column headers with sort indicators
+- 🎯 **Visual mode** - Select ranges of files vim-style
+- ⚡ **Bulk operations** - Select files by size, age, or pattern
+- 📱 **Responsive design** - Adapts to any terminal size (80x24+)
+- ⚠️ **Risk indicators** - LOW/MEDIUM/HIGH warnings before deletion
+- 📍 **Status bar** - Always shows selection count and shortcuts
+
+**Key Bindings:**
+```
+Navigation:
+  ↑/↓, j/k      Move up/down
+  gg            Jump to first item
+  G             Jump to last item
+  Ctrl+f, PgDn  Page down
+  Ctrl+b, PgUp  Page up
+
+Selection:
+  Space         Toggle selection
+  x             Toggle + move down (quick select)
+  v             Visual mode (range selection)
+  Ctrl+a        Select all
+  Ctrl+d        Deselect all
+
+File Browser:
+  s             Cycle sort (name/size/date/category)
+  S             Reverse sort order
+  /             Search/filter (fuzzy matching)
+  b             Bulk operations menu
+
+General:
+  Enter         Continue to next screen
+  e             Edit selection (from confirmation)
+  Esc           Back/Cancel
+  ?             Help
+  q, Ctrl+c     Quit
 ```
 
 #### `cleanup clean`
