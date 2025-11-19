@@ -105,17 +105,33 @@ func (m *CategoryViewModel) Update(msg tea.Msg) (*CategoryViewModel, tea.Cmd) {
 			if m.cursor < len(m.categories)-1 {
 				m.cursor++
 			}
+		case "g":
+			// Jump to top (gg)
+			m.cursor = 0
+		case "G":
+			// Jump to bottom
+			if len(m.categories) > 0 {
+				m.cursor = len(m.categories) - 1
+			}
 		case "space":
 			// Toggle selection
 			if m.cursor < len(m.categories) {
 				m.categories[m.cursor].Selected = !m.categories[m.cursor].Selected
 			}
-		case "a":
+		case "x":
+			// Toggle and move down (quick selection)
+			if m.cursor < len(m.categories) {
+				m.categories[m.cursor].Selected = !m.categories[m.cursor].Selected
+				if m.cursor < len(m.categories)-1 {
+					m.cursor++
+				}
+			}
+		case "ctrl+a":
 			// Select all
 			for i := range m.categories {
 				m.categories[i].Selected = true
 			}
-		case "d":
+		case "ctrl+d":
 			// Deselect all
 			for i := range m.categories {
 				m.categories[i].Selected = false
@@ -204,11 +220,12 @@ func (m *CategoryViewModel) View() string {
 
 	statusBar.SetSelection(selectedCatCount, len(m.categories), selectedSize)
 	statusBar.SetShortcuts(map[string]string{
-		"↑/↓":  "navigate",
+		"↑/↓":   "navigate",
 		"space": "toggle",
-		"a":     "select all",
+		"x":     "toggle+down",
+		"ctrl+a": "select all",
+		"ctrl+d": "deselect all",
 		"enter": "continue",
-		"?":     "help",
 		"q":     "quit",
 	})
 
