@@ -176,11 +176,38 @@ download_and_install() {
     print_info "Extracting binary..."
     tar -xzf cleanup.tar.gz
 
+    # Debug: Show what was extracted
+    print_info "Extracted files:"
+    ls -la
+
+    # Check if the expected binary exists
+    EXTRACTED_BINARY="cleanup-${OS}-${ARCH}"
+    if [ ! -f "$EXTRACTED_BINARY" ]; then
+        print_error "Expected binary not found: $EXTRACTED_BINARY"
+        print_error "Contents of directory:"
+        ls -la
+        exit 1
+    fi
+
     # Rename extracted binary to standard name
-    mv "cleanup-${OS}-${ARCH}" "$BINARY_NAME"
+    print_info "Renaming $EXTRACTED_BINARY to $BINARY_NAME..."
+    mv "$EXTRACTED_BINARY" "$BINARY_NAME"
+
+    # Verify rename succeeded
+    if [ ! -f "$BINARY_NAME" ]; then
+        print_error "Failed to rename binary"
+        exit 1
+    fi
 
     # Install
     print_info "Installing to $INSTALL_DIR..."
+
+    # Ensure install directory exists
+    if [ ! -d "$INSTALL_DIR" ]; then
+        print_info "Creating $INSTALL_DIR..."
+        $USE_SUDO mkdir -p "$INSTALL_DIR"
+    fi
+
     $USE_SUDO mv "$BINARY_NAME" "$INSTALL_DIR/"
     $USE_SUDO chmod +x "$INSTALL_DIR/$BINARY_NAME"
 
