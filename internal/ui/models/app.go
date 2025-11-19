@@ -1,10 +1,14 @@
 package models
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/charmbracelet/bubbletea"
 	"github.com/fenilsonani/cleanup-cache/internal/config"
 	"github.com/fenilsonani/cleanup-cache/internal/platform"
 	"github.com/fenilsonani/cleanup-cache/internal/scanner"
+	"github.com/fenilsonani/cleanup-cache/internal/ui/styles"
 )
 
 // ViewState represents the current view in the app
@@ -58,7 +62,7 @@ func NewAppModel(cfg *config.Config, platformInfo *platform.Info) *AppModel {
 // Init initializes the model
 func (m *AppModel) Init() tea.Cmd {
 	// Start scanning immediately
-	m.scanView = NewScanViewModel(m.config, m.platformInfo)
+	m.scanView = NewScanViewModel(m.config, m.platformInfo, m.width, m.height)
 	return m.scanView.Init()
 }
 
@@ -100,31 +104,36 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ScanCompleteMsg:
 		// Scanning complete, move to category selection
 		m.scanResult = msg.Result
-		m.categoryView = NewCategoryViewModel(m.scanResult)
+		m.categoryView = NewCategoryViewModel(m.scanResult, m.width, m.height)
 		m.state = ViewCategorySelection
 		return m, nil
 
 	case CategoriesSelectedMsg:
 		// Categories selected, move to file browser
-		m.browserView = NewBrowserViewModel(m.scanResult, msg.SelectedCategories)
+		m.browserView = NewBrowserViewModel(m.scanResult, msg.SelectedCategories, m.width, m.height)
 		m.state = ViewFileBrowser
 		return m, nil
 
 	case FilesSelectedMsg:
 		// Files selected, move to confirmation
-		m.confirmView = NewConfirmViewModel(msg.SelectedFiles)
+		m.confirmView = NewConfirmViewModel(msg.SelectedFiles, m.width, m.height)
 		m.state = ViewConfirmation
 		return m, nil
 
 	case ConfirmedMsg:
 		// User confirmed, start cleanup
-		m.cleanupView = NewCleanupViewModel(m.confirmView.files, m.config)
+		m.cleanupView = NewCleanupViewModel(m.confirmView.files, m.config, m.width, m.height)
 		m.state = ViewCleaning
 		return m, m.cleanupView.Init()
 
+	case ReviewSelectionMsg:
+		// User wants to review/edit selection, go back to file browser
+		m.state = ViewFileBrowser
+		return m, nil
+
 	case CleanupCompleteMsg:
 		// Cleanup complete, show summary
-		m.summaryView = NewSummaryViewModel(msg.Result)
+		m.summaryView = NewSummaryViewModel(msg.Result, m.width, m.height)
 		m.state = ViewSummary
 		return m, nil
 	}
@@ -205,43 +214,160 @@ func (m *AppModel) View() string {
 	return "Loading..."
 }
 
-// renderHelp renders the help view
+// renderHelp renders the help view with context-aware content
 func (m *AppModel) renderHelp() string {
-	help := `
-CleanupCache - Interactive Mode Help
+	var b strings.Builder
+
+	// Get help content based on current view
+	var viewName string
+	var helpContent string
+
+	switch m.previousState {
+	case ViewScanning:
+		viewName = "Scan View"
+		helpContent = m.getHelpForScan()
+	case ViewCategorySelection:
+		viewName = "Category Selection"
+		helpContent = m.getHelpForCategory()
+	case ViewFileBrowser:
+		viewName = "File Browser"
+		helpContent = m.getHelpForBrowser()
+	case ViewConfirmation:
+		viewName = "Confirmation"
+		helpContent = m.getHelpForConfirm()
+	case ViewCleaning:
+		viewName = "Cleanup"
+		helpContent = m.getHelpForCleanup()
+	case ViewSummary:
+		viewName = "Summary"
+		helpContent = m.getHelpForSummary()
+	default:
+		viewName = "General"
+		helpContent = m.getHelpForGeneral()
+	}
+
+	// Build help screen
+	// Title
+	title := fmt.Sprintf("Help - %s", viewName)
+	b.WriteString(styles.TitleStyle.Render(title))
+	b.WriteString("\n\n")
+
+	// Content
+	b.WriteString(helpContent)
+
+	b.WriteString("\n\n")
+	b.WriteString(styles.HelpStyle.Render("Press any key to close"))
+
+	return b.String()
+}
+
+func (m *AppModel) getHelpForScan() string {
+	return `Scanning your system for cache files and cleanable items.
+
+Actions:
+  ctrl+c  - Cancel scan and exit
+  q       - Cancel scan and exit
+
+The scan will automatically proceed to category selection when complete.`
+}
+
+func (m *AppModel) getHelpForCategory() string {
+	return `Select which categories of files you want to clean.
+
+Navigation:
+  ↑/k     - Move up
+  ↓/j     - Move down
+  gg      - Go to top
+  G       - Go to bottom
+
+Selection:
+  space   - Toggle category
+  a       - Select all
+  d       - Deselect all
+
+Actions:
+  enter   - Proceed to file browser
+  esc     - Go back
+  q       - Quit`
+}
+
+func (m *AppModel) getHelpForBrowser() string {
+	return `Browse and select individual files to delete.
+
+Navigation               Selection
+  ↑/k     Move up          space    Toggle item
+  ↓/j     Move down        x        Toggle + down
+  gg      Top              v        Visual mode
+  G       Bottom           ctrl+a   Select all
+  ctrl+f  Page down        ctrl+d   Deselect all
+  ctrl+b  Page up          ctrl+i   Invert selection
+
+Actions                  Other
+  enter   Proceed          /        Search/filter
+  s       Sort menu        tab      Switch panel
+  b       Bulk actions     ?        Toggle help
+  esc     Back             q        Quit`
+}
+
+func (m *AppModel) getHelpForConfirm() string {
+	return `Review and confirm your deletion choices.
+
+Navigation:
+  ←/→/h/l - Switch between buttons
+
+Actions:
+  enter   - Confirm selection
+  y       - Yes, proceed
+  n       - No, cancel
+  e       - Edit selection (go back)
+  esc     - Go back
+  q       - Quit
+
+Warning: Deleted files cannot be recovered!`
+}
+
+func (m *AppModel) getHelpForCleanup() string {
+	return `Deleting selected files. This may take a moment.
+
+Actions:
+  p       - Pause/Resume (if available)
+  ctrl+c  - Cancel cleanup (safely)
+
+Progress will be shown in real-time.
+The operation will proceed to the summary when complete.`
+}
+
+func (m *AppModel) getHelpForSummary() string {
+	return `Cleanup operation complete. Review the results.
+
+Actions:
+  enter   - Exit application
+  q       - Exit application
+
+Results show:
+  - Files successfully deleted
+  - Space freed
+  - Any errors or skipped files`
+}
+
+func (m *AppModel) getHelpForGeneral() string {
+	return `CleanupCache - Interactive Mode Help
 
 Global Shortcuts:
-  q       - Quit (from most views)
-  ctrl+c  - Force quit
   ?       - Toggle this help
   esc     - Go back / Close help
+  q       - Quit (from most views)
+  ctrl+c  - Force quit
 
-Category Selection:
-  ↑/↓     - Navigate categories
-  space   - Toggle category selection
-  enter   - Proceed to file browser
-  a       - Select all categories
-  d       - Deselect all categories
+This interactive mode guides you through:
+  1. Scanning - Find cleanable files
+  2. Category Selection - Choose file types
+  3. File Browser - Select specific files
+  4. Confirmation - Review your choices
+  5. Cleanup - Delete selected files
+  6. Summary - View results
 
-File Browser:
-  ↑/↓     - Navigate files
-  space   - Toggle file selection
-  enter   - View file details
-  /       - Open filter
-  s       - Open sort menu
-  b       - Open bulk actions
-  tab     - Switch between panels
-  ctrl+a  - Select all files
-  ctrl+d  - Deselect all files
-  ctrl+i  - Invert selection
-
-Cleanup:
-  p       - Pause/Resume
-  ctrl+c  - Cancel (safely)
-
-Press ESC to close this help.
-`
-	return help
+Press ? at any time to see context-specific help.`
 }
 
 // Custom messages
@@ -258,6 +384,8 @@ type FilesSelectedMsg struct {
 }
 
 type ConfirmedMsg struct{}
+
+type ReviewSelectionMsg struct{}
 
 type CleanupCompleteMsg struct {
 	Result interface{} // Will be CleanResult

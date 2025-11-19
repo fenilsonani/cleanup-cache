@@ -12,7 +12,9 @@ import (
 	"github.com/fenilsonani/cleanup-cache/internal/config"
 	"github.com/fenilsonani/cleanup-cache/internal/progress"
 	"github.com/fenilsonani/cleanup-cache/internal/scanner"
+	"github.com/fenilsonani/cleanup-cache/internal/ui/components"
 	"github.com/fenilsonani/cleanup-cache/internal/ui/styles"
+	uiutils "github.com/fenilsonani/cleanup-cache/internal/ui/utils"
 	"github.com/fenilsonani/cleanup-cache/pkg/utils"
 )
 
@@ -31,15 +33,25 @@ type CleanupViewModel struct {
 	cleaner      *cleaner.Cleaner
 	progressCh   <-chan interface{}
 	resultCh     chan *cleaner.CleanResult
+	width        int
+	height       int
 }
 
 // NewCleanupViewModel creates a new cleanup view model
-func NewCleanupViewModel(files []scanner.FileInfo, cfg *config.Config) *CleanupViewModel {
+func NewCleanupViewModel(files []scanner.FileInfo, cfg *config.Config, width, height int) *CleanupViewModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = styles.SelectedStyle
 
 	p := bubblesProgress.New(bubblesProgress.WithDefaultGradient())
+
+	// Use default dimensions if not provided
+	if width == 0 {
+		width = 80
+	}
+	if height == 0 {
+		height = 24
+	}
 
 	return &CleanupViewModel{
 		files:       files,
@@ -47,6 +59,8 @@ func NewCleanupViewModel(files []scanner.FileInfo, cfg *config.Config) *CleanupV
 		spinner:     s,
 		progressBar: p,
 		startTime:   time.Now(),
+		width:       width,
+		height:      height,
 	}
 }
 
@@ -79,6 +93,10 @@ func (m *CleanupViewModel) Init() tea.Cmd {
 // Update handles messages
 func (m *CleanupViewModel) Update(msg tea.Msg) (*CleanupViewModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -112,6 +130,11 @@ func (m *CleanupViewModel) Update(msg tea.Msg) (*CleanupViewModel, tea.Cmd) {
 func (m *CleanupViewModel) View() string {
 	var b strings.Builder
 
+	// Show warning if terminal is too small
+	if warning := uiutils.GetSizeWarningBanner(m.width, m.height); warning != "" {
+		b.WriteString(warning)
+	}
+
 	b.WriteString(styles.TitleStyle.Render("🗑️  Cleaning Up"))
 	b.WriteString("\n\n")
 
@@ -122,10 +145,16 @@ func (m *CleanupViewModel) View() string {
 		b.WriteString(styles.DimStyle.Render(fmt.Sprintf("(%s)", elapsed)))
 		b.WriteString("\n\n")
 
+		// Calculate available width for paths
+		pathWidth := m.width - 20
+		if pathWidth < 30 {
+			pathWidth = 30
+		}
+
 		// Current file being deleted
 		if m.currentFile != "" {
 			b.WriteString(styles.DimStyle.Render("Current: "))
-			b.WriteString(styles.FilePathStyle.Render(truncatePathCleanup(m.currentFile, 60)))
+			b.WriteString(styles.FilePathStyle.Render(uiutils.TruncatePath(m.currentFile, pathWidth)))
 			b.WriteString("\n\n")
 		}
 
@@ -164,15 +193,30 @@ func (m *CleanupViewModel) View() string {
 		b.WriteString(styles.HelpStyle.Render("Moving to summary..."))
 	}
 
-	return b.String()
-}
+	b.WriteString("\n\n")
 
-// truncatePathCleanup truncates file paths for display
-func truncatePathCleanup(path string, maxLen int) string {
-	if len(path) <= maxLen {
-		return path
+	// Status bar
+	statusBar := components.NewStatusBar()
+	if m.done {
+		statusBar.SetView("Cleanup Complete")
+	} else {
+		statusBar.SetView("Cleaning")
 	}
-	return "..." + path[len(path)-maxLen+3:]
+
+	statusBar.SetSelection(m.current, len(m.files), 0)
+	if m.done {
+		statusBar.SetShortcuts(map[string]string{
+			"enter": "view summary",
+		})
+	} else {
+		statusBar.SetShortcuts(map[string]string{
+			"ctrl+c": "cancel",
+		})
+	}
+
+	b.WriteString(statusBar.Render(m.width))
+
+	return b.String()
 }
 
 // pollProgress polls for cleanup progress updates

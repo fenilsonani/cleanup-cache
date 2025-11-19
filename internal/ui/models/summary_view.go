@@ -6,19 +6,33 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fenilsonani/cleanup-cache/internal/cleaner"
+	"github.com/fenilsonani/cleanup-cache/internal/ui/components"
 	"github.com/fenilsonani/cleanup-cache/internal/ui/styles"
+	uiutils "github.com/fenilsonani/cleanup-cache/internal/ui/utils"
 	"github.com/fenilsonani/cleanup-cache/pkg/utils"
 )
 
 // SummaryViewModel handles the summary/results view
 type SummaryViewModel struct {
 	result *cleaner.CleanResult
+	width  int
+	height int
 }
 
 // NewSummaryViewModel creates a new summary view model
-func NewSummaryViewModel(result interface{}) *SummaryViewModel {
+func NewSummaryViewModel(result interface{}, width, height int) *SummaryViewModel {
+	// Use default dimensions if not provided
+	if width == 0 {
+		width = 80
+	}
+	if height == 0 {
+		height = 24
+	}
+
 	return &SummaryViewModel{
 		result: result.(*cleaner.CleanResult),
+		width:  width,
+		height: height,
 	}
 }
 
@@ -30,6 +44,10 @@ func (m *SummaryViewModel) Init() tea.Cmd {
 // Update handles messages
 func (m *SummaryViewModel) Update(msg tea.Msg) (*SummaryViewModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "enter":
@@ -43,6 +61,11 @@ func (m *SummaryViewModel) Update(msg tea.Msg) (*SummaryViewModel, tea.Cmd) {
 // View renders the summary view
 func (m *SummaryViewModel) View() string {
 	var b strings.Builder
+
+	// Show warning if terminal is too small
+	if warning := uiutils.GetSizeWarningBanner(m.width, m.height); warning != "" {
+		b.WriteString(warning)
+	}
 
 	b.WriteString(styles.TitleStyle.Render("✨ Cleanup Summary"))
 	b.WriteString("\n\n")
@@ -79,8 +102,26 @@ func (m *SummaryViewModel) View() string {
 		}
 	}
 
-	b.WriteString("\n")
-	b.WriteString(styles.HelpStyle.Render("Press q or enter to exit"))
+	b.WriteString("\n\n")
+
+	// Status bar
+	statusBar := components.NewStatusBar()
+	statusBar.SetView("Summary")
+
+	var deletedCount int
+	var freedSpace int64
+	if m.result != nil {
+		deletedCount = len(m.result.DeletedFiles)
+		freedSpace = m.result.DeletedSize
+	}
+
+	statusBar.SetSelection(deletedCount, deletedCount, freedSpace)
+	statusBar.SetShortcuts(map[string]string{
+		"enter": "exit",
+		"q":     "quit",
+	})
+
+	b.WriteString(statusBar.Render(m.width))
 
 	return b.String()
 }

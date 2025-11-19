@@ -11,7 +11,9 @@ import (
 	"github.com/fenilsonani/cleanup-cache/internal/platform"
 	"github.com/fenilsonani/cleanup-cache/internal/progress"
 	"github.com/fenilsonani/cleanup-cache/internal/scanner"
+	"github.com/fenilsonani/cleanup-cache/internal/ui/components"
 	"github.com/fenilsonani/cleanup-cache/internal/ui/styles"
+	uiutils "github.com/fenilsonani/cleanup-cache/internal/ui/utils"
 	"github.com/fenilsonani/cleanup-cache/pkg/utils"
 )
 
@@ -28,6 +30,8 @@ type ScanViewModel struct {
 	scanner      *scanner.Scanner
 	progressCh   <-chan interface{}
 	resultCh     chan *scanner.ScanResult
+	width        int
+	height       int
 }
 
 // CategoryProgress tracks progress for each category
@@ -39,10 +43,18 @@ type CategoryProgress struct {
 }
 
 // NewScanViewModel creates a new scan view model
-func NewScanViewModel(cfg *config.Config, platformInfo *platform.Info) *ScanViewModel {
+func NewScanViewModel(cfg *config.Config, platformInfo *platform.Info, width, height int) *ScanViewModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = styles.SelectedStyle
+
+	// Use default dimensions if not provided
+	if width == 0 {
+		width = 80
+	}
+	if height == 0 {
+		height = 24
+	}
 
 	return &ScanViewModel{
 		config:       cfg,
@@ -51,6 +63,8 @@ func NewScanViewModel(cfg *config.Config, platformInfo *platform.Info) *ScanView
 		scanning:     true,
 		startTime:    time.Now(),
 		progress:     make(map[string]*CategoryProgress),
+		width:        width,
+		height:       height,
 	}
 }
 
@@ -77,6 +91,10 @@ func (m *ScanViewModel) Init() tea.Cmd {
 // Update handles messages
 func (m *ScanViewModel) Update(msg tea.Msg) (*ScanViewModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -115,9 +133,20 @@ func (m *ScanViewModel) Update(msg tea.Msg) (*ScanViewModel, tea.Cmd) {
 func (m *ScanViewModel) View() string {
 	var b strings.Builder
 
+	// Show warning if terminal is too small
+	if warning := uiutils.GetSizeWarningBanner(m.width, m.height); warning != "" {
+		b.WriteString(warning)
+	}
+
 	// Title
 	b.WriteString(styles.TitleStyle.Render("🔍 Scanning System"))
 	b.WriteString("\n\n")
+
+	// Calculate available width for paths (accounting for labels and spacing)
+	pathWidth := m.width - 20 // Reserve space for labels
+	if pathWidth < 30 {
+		pathWidth = 30
+	}
 
 	if m.scanning {
 		// Spinner and current status
@@ -129,7 +158,7 @@ func (m *ScanViewModel) View() string {
 		// Current directory
 		if m.currentDir != "" {
 			b.WriteString(styles.DimStyle.Render("Current: "))
-			b.WriteString(styles.FilePathStyle.Render(truncatePath(m.currentDir, 60)))
+			b.WriteString(styles.FilePathStyle.Render(uiutils.TruncatePath(m.currentDir, pathWidth)))
 			b.WriteString("\n\n")
 		}
 
@@ -174,7 +203,26 @@ func (m *ScanViewModel) View() string {
 	}
 
 	b.WriteString("\n\n")
-	b.WriteString(styles.HelpStyle.Render("Press ctrl+c to cancel"))
+
+	// Status bar
+	statusBar := components.NewStatusBar()
+	statusBar.SetView("Scanning")
+
+	// Calculate totals for status bar
+	totalFiles := 0
+	var totalSize int64
+	for _, prog := range m.progress {
+		totalFiles += prog.Count
+		totalSize += prog.Size
+	}
+
+	statusBar.SetSelection(0, totalFiles, totalSize)
+	statusBar.SetShortcuts(map[string]string{
+		"?":      "help",
+		"ctrl+c": "cancel",
+	})
+
+	b.WriteString(statusBar.Render(m.width))
 
 	return b.String()
 }
@@ -218,10 +266,3 @@ type ScanProgressMsg struct {
 	CurrentPath string
 }
 
-// Helper function to truncate paths
-func truncatePath(path string, maxLen int) string {
-	if len(path) <= maxLen {
-		return path
-	}
-	return "..." + path[len(path)-maxLen+3:]
-}

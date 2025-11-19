@@ -6,7 +6,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fenilsonani/cleanup-cache/internal/scanner"
+	"github.com/fenilsonani/cleanup-cache/internal/ui/components"
 	"github.com/fenilsonani/cleanup-cache/internal/ui/styles"
+	uiutils "github.com/fenilsonani/cleanup-cache/internal/ui/utils"
 	"github.com/fenilsonani/cleanup-cache/pkg/utils"
 )
 
@@ -23,10 +25,12 @@ type CategoryViewModel struct {
 	scanResult *scanner.ScanResult
 	categories []CategoryItem
 	cursor     int
+	width      int
+	height     int
 }
 
 // NewCategoryViewModel creates a new category view model
-func NewCategoryViewModel(scanResult *scanner.ScanResult) *CategoryViewModel {
+func NewCategoryViewModel(scanResult *scanner.ScanResult, width, height int) *CategoryViewModel {
 	// Group scan results by category
 	grouped := scanResult.GroupByCategory()
 
@@ -62,10 +66,20 @@ func NewCategoryViewModel(scanResult *scanner.ScanResult) *CategoryViewModel {
 		}
 	}
 
+	// Use default dimensions if not provided
+	if width == 0 {
+		width = 80
+	}
+	if height == 0 {
+		height = 24
+	}
+
 	return &CategoryViewModel{
 		scanResult: scanResult,
 		categories: categories,
 		cursor:     0,
+		width:      width,
+		height:     height,
 	}
 }
 
@@ -77,6 +91,10 @@ func (m *CategoryViewModel) Init() tea.Cmd {
 // Update handles messages
 func (m *CategoryViewModel) Update(msg tea.Msg) (*CategoryViewModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "k":
@@ -114,6 +132,11 @@ func (m *CategoryViewModel) Update(msg tea.Msg) (*CategoryViewModel, tea.Cmd) {
 // View renders the category selection view
 func (m *CategoryViewModel) View() string {
 	var b strings.Builder
+
+	// Show warning if terminal is too small
+	if warning := uiutils.GetSizeWarningBanner(m.width, m.height); warning != "" {
+		b.WriteString(warning)
+	}
 
 	// Title
 	b.WriteString(styles.TitleStyle.Render("📦 Select Categories to Clean"))
@@ -167,8 +190,29 @@ func (m *CategoryViewModel) View() string {
 		utils.FormatBytes(selectedSize))))
 	b.WriteString("\n\n")
 
-	// Shortcuts
-	b.WriteString(styles.HelpStyle.Render("Shortcuts: [a] select all  [d] deselect all  [enter] continue  [q] quit"))
+	// Status bar
+	statusBar := components.NewStatusBar()
+	statusBar.SetView("Category Selection")
+
+	// Count selected categories
+	selectedCatCount := 0
+	for _, cat := range m.categories {
+		if cat.Selected {
+			selectedCatCount++
+		}
+	}
+
+	statusBar.SetSelection(selectedCatCount, len(m.categories), selectedSize)
+	statusBar.SetShortcuts(map[string]string{
+		"↑/↓":  "navigate",
+		"space": "toggle",
+		"a":     "select all",
+		"enter": "continue",
+		"?":     "help",
+		"q":     "quit",
+	})
+
+	b.WriteString(statusBar.Render(m.width))
 
 	return b.String()
 }
