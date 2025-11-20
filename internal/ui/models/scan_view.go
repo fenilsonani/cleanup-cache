@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,10 +37,12 @@ type ScanViewModel struct {
 
 // CategoryProgress tracks progress for each category
 type CategoryProgress struct {
-	Name  string
-	Count int
-	Size  int64
-	Done  bool
+	Name         string
+	Count        int
+	Size         int64
+	Done         bool
+	LastUpdate   time.Time
+	DirectoryHit map[string]int // Track file counts per directory
 }
 
 // NewScanViewModel creates a new scan view model
@@ -104,11 +107,24 @@ func (m *ScanViewModel) Update(msg tea.Msg) (*ScanViewModel, tea.Cmd) {
 		// Update progress
 		if m.progress[msg.Category] == nil {
 			m.progress[msg.Category] = &CategoryProgress{
-				Name: msg.Category,
+				Name:         msg.Category,
+				DirectoryHit: make(map[string]int),
 			}
 		}
 		m.progress[msg.Category].Count = msg.Count
 		m.progress[msg.Category].Size = msg.Size
+		m.progress[msg.Category].LastUpdate = time.Now()
+
+		// Track directory hits for "hot folders"
+		if msg.CurrentPath != "" {
+			dir := msg.CurrentPath
+			// Extract parent directory
+			if idx := strings.LastIndex(dir, "/"); idx > 0 {
+				dir = dir[:idx]
+			}
+			m.progress[msg.Category].DirectoryHit[dir]++
+		}
+
 		m.currentDir = msg.CurrentPath
 		// Continue polling
 		return m, m.pollProgress
@@ -149,42 +165,92 @@ func (m *ScanViewModel) View() string {
 	}
 
 	if m.scanning {
-		// Spinner and current status
+		// Calculate metrics
+		elapsed := time.Since(m.startTime)
+		totalFiles := 0
+		var totalSize int64
+
+		for _, prog := range m.progress {
+			totalFiles += prog.Count
+			totalSize += prog.Size
+		}
+
+		// Calculate rates
+		elapsedSecs := elapsed.Seconds()
+		filesPerSec := 0.0
+		bytesPerSec := 0.0
+		if elapsedSecs > 0 {
+			filesPerSec = float64(totalFiles) / elapsedSecs
+			bytesPerSec = float64(totalSize) / elapsedSecs
+		}
+
+		// Calculate percentage (estimate based on typical scan time)
+		percentage := 0
+		if totalFiles > 0 {
+			// Simple heuristic: assume 5000 files is 100%
+			percentage = (totalFiles * 100) / 5000
+			if percentage > 100 {
+				percentage = 100
+			}
+		}
+
+		// Spinner and status with percentage
 		b.WriteString(m.spinner.View())
-		b.WriteString(" Scanning... ")
-		b.WriteString(styles.DimStyle.Render(fmt.Sprintf("(%s)", time.Since(m.startTime).Round(time.Second))))
+		b.WriteString(fmt.Sprintf(" Scanning... %s", styles.BoldStyle.Render(fmt.Sprintf("%d%%", percentage))))
+		b.WriteString("\n")
+
+		// Progress bar
+		barWidth := 40
+		if m.width < 100 {
+			barWidth = 20
+		}
+		progressBar := styles.ProgressBar(percentage, 100, barWidth)
+		b.WriteString(progressBar)
 		b.WriteString("\n\n")
+
+		// Metrics section
+		b.WriteString(styles.SubtitleStyle.Render("📊 Metrics:"))
+		b.WriteString("\n")
+
+		// Format elapsed time as MM:SS
+		minutes := int(elapsed.Minutes())
+		seconds := int(elapsed.Seconds()) % 60
+		elapsedStr := fmt.Sprintf("%02d:%02d", minutes, seconds)
+
+		// Speed metrics
+		b.WriteString(fmt.Sprintf("  Speed: %s, %s/sec\n",
+			styles.BoldStyle.Render(fmt.Sprintf("%s files/sec", formatNumber(int(filesPerSec)))),
+			styles.FileSizeStyle.Render(formatBytes(int64(bytesPerSec))),
+		))
+		b.WriteString(fmt.Sprintf("  Elapsed: %s\n",
+			styles.DimStyle.Render(elapsedStr),
+		))
+		b.WriteString(fmt.Sprintf("  Found: %s files, %s\n\n",
+			styles.BoldStyle.Render(formatNumber(totalFiles)),
+			styles.GetFileSizeStyle(totalSize).Render(utils.FormatBytes(totalSize)),
+		))
+
+		// Hot Folders section
+		hotFolders := m.getHotFolders(3)
+		if len(hotFolders) > 0 {
+			b.WriteString(styles.SubtitleStyle.Render("🔥 Hot Folders:"))
+			b.WriteString("\n")
+			for _, hf := range hotFolders {
+				truncPath := uiutils.TruncatePath(hf.Path, pathWidth-20)
+				b.WriteString(fmt.Sprintf("  %s %s\n",
+					styles.FilePathStyle.Render(truncPath),
+					styles.DimStyle.Render(fmt.Sprintf("(%s files)", formatNumber(hf.Count))),
+				))
+			}
+			b.WriteString("\n")
+		}
 
 		// Current directory
 		if m.currentDir != "" {
 			b.WriteString(styles.DimStyle.Render("Current: "))
 			b.WriteString(styles.FilePathStyle.Render(uiutils.TruncatePath(m.currentDir, pathWidth)))
-			b.WriteString("\n\n")
+			b.WriteString("\n")
 		}
-
-		// Progress by category
-		b.WriteString(styles.SubtitleStyle.Render("Progress by Category:"))
-		b.WriteString("\n")
-
-		totalFiles := 0
-		var totalSize int64
-
-		for _, category := range []string{"cache", "temp", "logs", "duplicates", "downloads", "package_managers"} {
-			if prog, ok := m.progress[category]; ok && prog.Count > 0 {
-				b.WriteString(fmt.Sprintf("  %s: %s files, %s\n",
-					styles.CategoryStyle.Render(category),
-					styles.BoldStyle.Render(fmt.Sprintf("%d", prog.Count)),
-					styles.FileSizeStyle.Render(utils.FormatBytes(prog.Size)),
-				))
-				totalFiles += prog.Count
-				totalSize += prog.Size
-			}
-		}
-
-		b.WriteString("\n")
-		b.WriteString(styles.BoldStyle.Render(fmt.Sprintf("Total: %d files, %s",
-			totalFiles,
-			utils.FormatBytes(totalSize))))
 
 	} else {
 		// Scan complete
@@ -206,7 +272,10 @@ func (m *ScanViewModel) View() string {
 
 	// Status bar
 	statusBar := components.NewStatusBar()
-	statusBar.SetView("Scanning")
+
+	// Set workflow breadcrumbs
+	workflowSteps := []string{"Scan", "Categories", "Files", "Confirm", "Clean"}
+	statusBar.SetWorkflowStep(1, len(workflowSteps), workflowSteps)
 
 	// Calculate totals for status bar
 	totalFiles := 0
@@ -264,5 +333,72 @@ type ScanProgressMsg struct {
 	Count       int
 	Size        int64
 	CurrentPath string
+}
+
+// HotFolder represents a directory with high file activity
+type HotFolder struct {
+	Path  string
+	Count int
+}
+
+// getHotFolders returns the top N directories by file count
+func (m *ScanViewModel) getHotFolders(n int) []HotFolder {
+	// Aggregate directory hits across all categories
+	dirCounts := make(map[string]int)
+	for _, prog := range m.progress {
+		for dir, count := range prog.DirectoryHit {
+			dirCounts[dir] += count
+		}
+	}
+
+	// Convert to slice and sort
+	var hotFolders []HotFolder
+	for dir, count := range dirCounts {
+		hotFolders = append(hotFolders, HotFolder{Path: dir, Count: count})
+	}
+
+	// Sort by count descending
+	sort.Slice(hotFolders, func(i, j int) bool {
+		return hotFolders[i].Count > hotFolders[j].Count
+	})
+
+	// Return top N
+	if len(hotFolders) > n {
+		hotFolders = hotFolders[:n]
+	}
+
+	return hotFolders
+}
+
+// formatNumber formats a number with thousand separators
+func formatNumber(n int) string {
+	if n < 1000 {
+		return fmt.Sprintf("%d", n)
+	}
+
+	// Format with commas
+	str := fmt.Sprintf("%d", n)
+	var result strings.Builder
+	for i, c := range str {
+		if i > 0 && (len(str)-i)%3 == 0 {
+			result.WriteRune(',')
+		}
+		result.WriteRune(c)
+	}
+	return result.String()
+}
+
+// formatBytes formats bytes in a compact way for rates
+func formatBytes(bytes int64) string {
+	if bytes < 1024 {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	if bytes < 1024*1024 {
+		return fmt.Sprintf("%.1f KB", float64(bytes)/1024)
+	}
+	if bytes < 1024*1024*1024 {
+		return fmt.Sprintf("%.1f MB", float64(bytes)/(1024*1024))
+	}
+	return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
 }
 

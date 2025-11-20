@@ -135,6 +135,30 @@ func (m *CategoryViewModel) Update(msg tea.Msg) (*CategoryViewModel, tea.Cmd) {
 			if len(m.categories) > 0 {
 				m.cursor = len(m.categories) - 1
 			}
+		case "home":
+			// Jump to first item
+			m.cursor = 0
+		case "end":
+			// Jump to last item
+			if len(m.categories) > 0 {
+				m.cursor = len(m.categories) - 1
+			}
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+			// Quick toggle by number (1-9)
+			idx := int(msg.String()[0] - '1')
+			if idx < len(m.categories) {
+				m.categories[idx].Selected = !m.categories[idx].Selected
+			}
+		case "q":
+			// Quick Clean - select only safe categories (cache, temp, logs)
+			for i := range m.categories {
+				m.categories[i].Selected = false // Deselect all first
+			}
+			for i := range m.categories {
+				if m.categories[i].Name == "cache" || m.categories[i].Name == "temp" || m.categories[i].Name == "logs" {
+					m.categories[i].Selected = true
+				}
+			}
 		case "space", " ":
 			// Toggle selection
 			if m.cursor >= 0 && m.cursor < len(m.categories) {
@@ -181,12 +205,33 @@ func (m *CategoryViewModel) View() string {
 	b.WriteString("\n\n")
 
 	// Instructions
-	helpText := "↑/↓:navigate  space:toggle  x:toggle+down  ctrl+a:all  ctrl+d:none  enter:continue"
+	helpText := "↑/↓:navigate  space:toggle  1-9:quick toggle  q:quick clean  home/end:jump  enter:continue"
+	if m.width < 100 {
+		helpText = "↑/↓:nav  space:toggle  1-9:quick  q:safe  enter:next"
+	}
 	if m.width < 80 {
 		helpText = "↑/↓:move  space:toggle  enter:continue"
 	}
 	b.WriteString(styles.HelpStyle.Render(helpText))
 	b.WriteString("\n\n")
+
+	// Empty state check
+	if len(m.categories) == 0 {
+		b.WriteString(styles.EmptyStateBox(
+			"No categories found",
+			"The scan didn't find any files to clean. Your system is already clean!"))
+		b.WriteString("\n\n")
+
+		// Status bar even when empty
+		statusBar := components.NewStatusBar()
+		workflowSteps := []string{"Scan", "Categories", "Files", "Confirm", "Clean"}
+		statusBar.SetWorkflowStep(2, len(workflowSteps), workflowSteps)
+		statusBar.SetShortcuts(map[string]string{
+			"q": "quit",
+		})
+		b.WriteString(statusBar.Render(m.width))
+		return b.String()
+	}
 
 	// Category list with enhanced display
 	for i, cat := range m.categories {
@@ -258,7 +303,10 @@ func (m *CategoryViewModel) View() string {
 
 	// Status bar
 	statusBar := components.NewStatusBar()
-	statusBar.SetView("Category Selection")
+
+	// Set workflow breadcrumbs
+	workflowSteps := []string{"Scan", "Categories", "Files", "Confirm", "Clean"}
+	statusBar.SetWorkflowStep(2, len(workflowSteps), workflowSteps)
 
 	// Count selected categories
 	selectedCatCount := 0
@@ -270,13 +318,12 @@ func (m *CategoryViewModel) View() string {
 
 	statusBar.SetSelection(selectedCatCount, len(m.categories), selectedSize)
 	statusBar.SetShortcuts(map[string]string{
-		"↑/↓":   "navigate",
-		"space": "toggle",
-		"x":     "toggle+down",
-		"ctrl+a": "select all",
-		"ctrl+d": "deselect all",
-		"enter": "continue",
-		"q":     "quit",
+		"↑/↓":     "navigate",
+		"space":   "toggle",
+		"1-9":     "quick toggle",
+		"q":       "quick clean",
+		"home/end": "jump",
+		"enter":   "continue",
 	})
 
 	b.WriteString(statusBar.Render(m.width))

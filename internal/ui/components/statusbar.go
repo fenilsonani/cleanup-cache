@@ -11,11 +11,14 @@ import (
 
 // StatusBar represents a status bar component that displays at the bottom of views
 type StatusBar struct {
-	viewName  string
-	selected  int
-	total     int
-	size      int64
-	shortcuts map[string]string
+	viewName      string
+	selected      int
+	total         int
+	size          int64
+	shortcuts     map[string]string
+	workflowStep  int
+	workflowTotal int
+	workflowSteps []string
 }
 
 // NewStatusBar creates a new status bar
@@ -46,6 +49,13 @@ func (s *StatusBar) SetShortcuts(shortcuts map[string]string) {
 	s.shortcuts = shortcuts
 }
 
+// SetWorkflowStep sets the workflow step information for breadcrumbs
+func (s *StatusBar) SetWorkflowStep(current, total int, steps []string) {
+	s.workflowStep = current
+	s.workflowTotal = total
+	s.workflowSteps = steps
+}
+
 // Render renders the status bar with the given width
 func (s *StatusBar) Render(width int) string {
 	if width <= 0 {
@@ -54,9 +64,15 @@ func (s *StatusBar) Render(width int) string {
 
 	var parts []string
 
-	// View name
-	if s.viewName != "" {
-		parts = append(parts, styles.BoldStyle.Render(s.viewName))
+	// Workflow breadcrumbs (if set)
+	if s.workflowTotal > 0 && len(s.workflowSteps) > 0 {
+		breadcrumbs := s.renderWorkflowBreadcrumbs()
+		parts = append(parts, breadcrumbs)
+	} else {
+		// View name (fallback if no workflow)
+		if s.viewName != "" {
+			parts = append(parts, styles.BoldStyle.Render(s.viewName))
+		}
 	}
 
 	// Selection info
@@ -68,7 +84,8 @@ func (s *StatusBar) Render(width int) string {
 	// Size info
 	if s.size > 0 {
 		sizeInfo := utils.FormatBytes(s.size)
-		parts = append(parts, styles.FileSizeStyle.Render(sizeInfo))
+		sizeStyle := styles.GetFileSizeStyle(s.size)
+		parts = append(parts, sizeStyle.Render(sizeInfo))
 	}
 
 	// Left side of status bar
@@ -143,4 +160,39 @@ func RenderSimple(message string, width int) string {
 		Width(width)
 
 	return statusBarStyle.Render(message)
+}
+
+// renderWorkflowBreadcrumbs renders the workflow breadcrumb navigation
+func (s *StatusBar) renderWorkflowBreadcrumbs() string {
+	var b strings.Builder
+
+	// Step indicator
+	stepInfo := fmt.Sprintf("Step %d/%d", s.workflowStep, s.workflowTotal)
+	b.WriteString(styles.DimStyle.Render(stepInfo))
+	b.WriteString(" ")
+
+	// Breadcrumbs
+	for i, step := range s.workflowSteps {
+		stepNum := i + 1
+
+		if i > 0 {
+			// Arrow separator
+			b.WriteString(styles.DimStyle.Render(" → "))
+		}
+
+		// Render step
+		if stepNum < s.workflowStep {
+			// Completed step - dim
+			b.WriteString(styles.DimStyle.Render(step))
+		} else if stepNum == s.workflowStep {
+			// Current step - highlighted with bullet
+			b.WriteString(styles.BoldStyle.Render("● " + step))
+		} else {
+			// Future step - very dim
+			dimmerStyle := lipgloss.NewStyle().Foreground(styles.Muted)
+			b.WriteString(dimmerStyle.Render(step))
+		}
+	}
+
+	return b.String()
 }

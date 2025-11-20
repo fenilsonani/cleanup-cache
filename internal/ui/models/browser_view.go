@@ -638,8 +638,13 @@ func (m *BrowserViewModel) View() string {
 
 	// Empty state
 	if len(m.filteredFiles) == 0 {
-		emptyStyle := lipgloss.NewStyle().Foreground(styles.Muted).Italic(true)
-		b.WriteString(emptyStyle.Render("  No files found matching filter"))
+		message := "No files found"
+		suggestion := "Try adjusting your filter or selecting different categories"
+		if m.filterActive {
+			message = "No files match your filter"
+			suggestion = "Try a different search term or clear the filter with ESC"
+		}
+		b.WriteString(styles.EmptyStateBox(message, suggestion))
 		b.WriteString("\n")
 	}
 
@@ -672,7 +677,11 @@ func (m *BrowserViewModel) View() string {
 		}
 
 		statusBar := components.NewStatusBar()
-		statusBar.SetView("File Browser")
+
+		// Set workflow breadcrumbs
+		workflowSteps := []string{"Scan", "Categories", "Files", "Confirm", "Clean"}
+		statusBar.SetWorkflowStep(3, len(workflowSteps), workflowSteps)
+
 		statusBar.SetSelection(selectedCount, len(m.files), selectedSize)
 
 		// Show mode and shortcuts
@@ -686,13 +695,11 @@ func (m *BrowserViewModel) View() string {
 		}
 
 		if m.filterMode {
-			statusBar.SetView("File Browser - Filter Mode")
 			shortcuts = map[string]string{
 				"enter": "apply",
 				"esc":   "cancel",
 			}
 		} else if m.visualMode {
-			statusBar.SetView("File Browser - Visual Mode")
 			shortcuts = map[string]string{
 				"↑/↓":  "nav",
 				"space": "toggle",
@@ -816,9 +823,10 @@ func (m *BrowserViewModel) renderFileRow(i int) string {
 	}
 	b.WriteString(filenameStyle.Render(fmt.Sprintf("%-*s", availableForPath+2, filename)))
 
-	// Size
+	// Size with color coding
 	sizeStr := utils.FormatBytes(file.Size)
-	b.WriteString(styles.FileSizeStyle.Render(fmt.Sprintf("%-12s", sizeStr)))
+	sizeStyle := styles.GetFileSizeStyle(file.Size)
+	b.WriteString(sizeStyle.Render(fmt.Sprintf("%-12s", sizeStr)))
 
 	// Modified time (adjust for small terminals)
 	modTime := formatRelativeTime(file.ModTime)
