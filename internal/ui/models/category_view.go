@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/fenilsonani/cleanup-cache/internal/scanner"
 	"github.com/fenilsonani/cleanup-cache/internal/ui/components"
 	"github.com/fenilsonani/cleanup-cache/internal/ui/styles"
@@ -12,12 +13,24 @@ import (
 	"github.com/fenilsonani/cleanup-cache/pkg/utils"
 )
 
+// SafetyLevel represents the safety level of a category
+type SafetyLevel int
+
+const (
+	SafetyLow SafetyLevel = iota
+	SafetyMedium
+	SafetyHigh
+)
+
 // CategoryItem represents a selectable category
 type CategoryItem struct {
-	Name     string
-	Count    int
-	Size     int64
-	Selected bool
+	Name        string
+	Count       int
+	Size        int64
+	Selected    bool
+	SafetyLevel SafetyLevel
+	Recommended bool
+	Description string
 }
 
 // CategoryViewModel handles category selection
@@ -34,20 +47,26 @@ func NewCategoryViewModel(scanResult *scanner.ScanResult, width, height int) *Ca
 	// Group scan results by category
 	grouped := scanResult.GroupByCategory()
 
-	// Create category items
+	// Create category items with smart defaults
 	var categories []CategoryItem
 	for _, catName := range []string{"cache", "temp", "logs", "duplicates", "downloads", "package_managers"} {
 		if catResult, ok := grouped[catName]; ok && catResult.TotalCount > 0 {
+			// Determine safety level and defaults
+			safetyLevel, recommended, selected := getCategoryDefaults(catName)
+
 			categories = append(categories, CategoryItem{
-				Name:     catName,
-				Count:    catResult.TotalCount,
-				Size:     catResult.TotalSize,
-				Selected: true, // Default to selected
+				Name:        catName,
+				Count:       catResult.TotalCount,
+				Size:        catResult.TotalSize,
+				Selected:    selected,
+				SafetyLevel: safetyLevel,
+				Recommended: recommended,
+				Description: getCategoryDescription(catName),
 			})
 		}
 	}
 
-	// Also add any other categories
+	// Also add any other categories (with conservative defaults)
 	for catName, catResult := range grouped {
 		found := false
 		for _, cat := range categories {
@@ -58,10 +77,13 @@ func NewCategoryViewModel(scanResult *scanner.ScanResult, width, height int) *Ca
 		}
 		if !found && catResult.TotalCount > 0 {
 			categories = append(categories, CategoryItem{
-				Name:     catName,
-				Count:    catResult.TotalCount,
-				Size:     catResult.TotalSize,
-				Selected: true,
+				Name:        catName,
+				Count:       catResult.TotalCount,
+				Size:        catResult.TotalSize,
+				Selected:    false, // Unknown categories default to unselected
+				SafetyLevel: SafetyLow,
+				Recommended: false,
+				Description: "Unknown category - review carefully",
 			})
 		}
 	}
@@ -166,7 +188,7 @@ func (m *CategoryViewModel) View() string {
 	b.WriteString(styles.HelpStyle.Render(helpText))
 	b.WriteString("\n\n")
 
-	// Category list
+	// Category list with enhanced display
 	for i, cat := range m.categories {
 		cursor := "  "
 		if i == m.cursor {
@@ -178,20 +200,44 @@ func (m *CategoryViewModel) View() string {
 			checkbox = styles.CheckedBox()
 		}
 
-		line := fmt.Sprintf("%s%s %s",
+		// Category icon and name with color
+		categoryIcon := styles.GetCategoryIcon(cat.Name)
+		categoryNameStyle := lipgloss.NewStyle().Foreground(styles.GetCategoryColor(cat.Name)).Bold(true)
+
+		line := fmt.Sprintf("%s%s %s %s",
 			cursor,
 			checkbox,
-			styles.CategoryStyle.Render(cat.Name),
+			categoryIcon,
+			categoryNameStyle.Render(cat.Name),
 		)
 
-		// Add count and size
+		// Add safety indicator
+		safetyIcon := styles.GetSafetyIcon(cat.SafetyLevel.String())
+		safetyStyle := lipgloss.NewStyle().Foreground(styles.GetSafetyColor(cat.SafetyLevel.String()))
+		line += " " + safetyStyle.Render(safetyIcon)
+
+		// Add recommended badge
+		if cat.Recommended {
+			line += " " + styles.RecommendedBadgeStyle.Render("RECOMMENDED")
+		}
+
+		// Add count and size with color coding
+		sizeColor := styles.GetFileSizeColor(cat.Size)
+		sizeStyle := lipgloss.NewStyle().Foreground(sizeColor).Bold(true)
 		line += fmt.Sprintf(" (%s files, %s)",
 			styles.DimStyle.Render(fmt.Sprintf("%d", cat.Count)),
-			styles.FileSizeStyle.Render(utils.FormatBytes(cat.Size)),
+			sizeStyle.Render(utils.FormatBytes(cat.Size)),
 		)
 
 		b.WriteString(line)
 		b.WriteString("\n")
+
+		// Add description on hover (when cursor is on this item)
+		if i == m.cursor && m.width >= 100 {
+			descStyle := lipgloss.NewStyle().Foreground(styles.TextDim).Italic(true).MarginLeft(6)
+			b.WriteString(descStyle.Render("↳ " + cat.Description))
+			b.WriteString("\n")
+		}
 	}
 
 	// Summary
@@ -249,5 +295,61 @@ func (m *CategoryViewModel) proceedToFileBrowser() tea.Cmd {
 
 	return func() tea.Msg {
 		return CategoriesSelectedMsg{SelectedCategories: selected}
+	}
+}
+
+// Helper functions
+
+// getCategoryDefaults returns the safety level, recommended status, and default selection for a category
+func getCategoryDefaults(category string) (SafetyLevel, bool, bool) {
+	switch category {
+	case "cache", "temp":
+		// Very safe - always recommended and selected by default
+		return SafetyHigh, true, true
+	case "logs":
+		// Safe but review age threshold
+		return SafetyHigh, true, true
+	case "package_managers":
+		// Generally safe but can require reinstall
+		return SafetyMedium, false, false
+	case "duplicates":
+		// Needs careful review to avoid deleting wrong files
+		return SafetyMedium, false, false
+	case "downloads":
+		// Risky - might contain important files
+		return SafetyLow, false, false
+	default:
+		return SafetyLow, false, false
+	}
+}
+
+// getCategoryDescription returns a user-friendly description for a category
+func getCategoryDescription(category string) string {
+	descriptions := map[string]string{
+		"cache":            "Temporary files that can be safely regenerated",
+		"temp":             "Temporary files created by applications",
+		"logs":             "Log files older than the configured threshold",
+		"duplicates":       "Duplicate files identified by content hash",
+		"downloads":        "Old files in your Downloads folder",
+		"package_managers": "Cache from package managers (brew, npm, pip, etc.)",
+	}
+
+	if desc, ok := descriptions[category]; ok {
+		return desc
+	}
+	return "No description available"
+}
+
+// getSafetyLevelString returns a string representation of the safety level
+func (s SafetyLevel) String() string {
+	switch s {
+	case SafetyHigh:
+		return "SAFE"
+	case SafetyMedium:
+		return "CAUTION"
+	case SafetyLow:
+		return "RISKY"
+	default:
+		return "UNKNOWN"
 	}
 }
