@@ -8,13 +8,14 @@ const (
 	// DefaultBatchSize is the number of files to collect before emitting a batch
 	DefaultBatchSize = 10000
 	// ChannelBufferSize is the buffer size for streaming channels
-	ChannelBufferSize = 10
+	// Increased from 10 to 100 for better throughput and reduced blocking
+	ChannelBufferSize = 100
 )
 
 // ScanBatch represents a batch of files found during streaming scan
 type ScanBatch struct {
 	Files     []FileInfo
-	BatchSize int64  // Total size of files in this batch
+	BatchSize int64 // Total size of files in this batch
 	Category  string
 	Error     error // If an error occurred during this batch
 	Final     bool  // True if this is the last batch

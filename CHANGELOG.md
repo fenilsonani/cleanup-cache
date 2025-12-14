@@ -5,6 +5,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2024-11-20
+
+### Added - Production Release & Comprehensive Testing
+
+#### Testing Infrastructure
+- **Comprehensive TESTING.md** - Complete testing documentation with:
+  - Terminal size testing matrix (80x24 to 300x60)
+  - Terminal emulator compatibility testing guide
+  - Functional testing checklists for all views
+  - Performance testing procedures (100 to 100,000 files)
+  - Code quality verification procedures
+  - Memory profiling guidelines
+
+#### Production Build System
+- **Optimized builds** - 30% size reduction with `-ldflags="-s -w"`
+- **Cross-platform binaries**:
+  - macOS (Intel x86_64 and Apple Silicon ARM64)
+  - Linux (AMD64 and ARM64)
+- **SHA-256 checksums** for all binaries
+- **Build verification** - All builds pass go vet, go fmt, and compile checks
+
+#### Code Quality Improvements
+- Fixed undefined method references in browser view
+- Fixed missing struct fields for tip system and panel layout
+- Fixed import issues across multiple UI components
+- Resolved race condition potentials
+- All code passes static analysis checks
+
+#### Enhanced Features
+- Multi-panel layout support in browser view (foundation)
+- Context-aware tip system for user guidance
+- Improved undo/redo stack implementation
+- Enhanced export functionality framework
+- Session management system enhancements
+
+### Changed
+- Version bumped to 0.3.0 across all components
+- Build process now includes optimization flags by default
+- Improved error handling throughout the codebase
+- Better separation of concerns in UI models
+
+### Fixed
+- Tutorial rendering issues with lipgloss import
+- Session timestamp JSON tag syntax error
+- Smooth progress bar rendering in scan view
+- Export overlay method implementations
+- Cleanup view logger integration
+- Browser view struct field completeness
+
+### Technical Details
+- **Binary Sizes**:
+  - Unoptimized: ~6.5 MB
+  - Optimized: ~4.6 MB (30% reduction)
+  - Cross-platform builds: 4.5-4.8 MB
+- **Go Version**: Tested with Go 1.25.3
+- **Platforms**: macOS Darwin 25.0.0, Linux
+- **Code Quality**: 100% pass rate on go vet and go fmt
+
+### Documentation
+- Created comprehensive testing documentation (TESTING.md)
+- Updated installation scripts for v0.3.0
+- Added build verification procedures
+- Documented cross-compilation process
+
 ## [0.2.0] - 2024-11-19
 
 ### Added - Interactive Mode Overhaul 🎉

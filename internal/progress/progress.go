@@ -31,18 +31,18 @@ type ScanProgress struct {
 
 // CleanProgress represents progress during cleanup
 type CleanProgress struct {
-	Phase          Phase
-	CurrentFile    string
-	DeletedFiles   int
-	TotalFiles     int
-	DeletedSize    int64
-	TotalSize      int64
-	SkippedFiles   int
-	ErrorCount     int
-	StartTime      time.Time
-	UsingSudo      bool
-	SudoPrompted   bool
-	Error          error
+	Phase        Phase
+	CurrentFile  string
+	DeletedFiles int
+	TotalFiles   int
+	DeletedSize  int64
+	TotalSize    int64
+	SkippedFiles int
+	ErrorCount   int
+	StartTime    time.Time
+	UsingSudo    bool
+	SudoPrompted bool
+	Error        error
 }
 
 // ProgressReporter provides thread-safe progress reporting

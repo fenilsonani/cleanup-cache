@@ -7,14 +7,14 @@ func GetDefault() *Config {
 			Cache:           true,
 			Temp:            true,
 			Logs:            true,
-			Duplicates:      false, // Disabled by default as it's more aggressive
 			Downloads:       false, // Disabled by default to prevent accidental deletion
 			PackageManagers: true,
+			Docker:          false, // Disabled by default - requires explicit opt-in
 		},
 		AgeThresholds: AgeThresholds{
-			Logs:      30,  // 30 days
-			Downloads: 90,  // 90 days
-			Temp:      7,   // 7 days
+			Logs:      30, // 30 days
+			Downloads: 90, // 90 days
+			Temp:      7,  // 7 days
 		},
 		SizeLimits: SizeLimits{
 			MinFileSize: "1KB",
@@ -54,8 +54,31 @@ func GetDefault() *Config {
 			"/sys",
 		},
 		DryRun:     false, // Production default - actually delete files
-		MinFileAge: 1,    // 1 hour - never delete files younger than this
+		MinFileAge: 1,     // 1 hour - never delete files younger than this
 		Verbose:    false,
+		Docker: DockerConfig{
+			Enabled:               false,
+			CleanImages:           true,
+			CleanContainers:       true,
+			CleanVolumes:          false, // Volumes disabled by default - may contain data
+			CleanBuildCache:       true,
+			OnlyDanglingImages:    true, // Only clean dangling images by default
+			OnlyStoppedContainers: true, // Only clean stopped containers
+			OnlyUnusedVolumes:     true, // Only clean unused volumes
+			ImageAgeDays:          7,    // Clean images older than 7 days
+			ContainerAgeDays:      1,    // Clean containers older than 1 day
+			KeepImages:            []string{},
+			KeepContainers:        []string{},
+			KeepVolumes:           []string{},
+		},
+		SecureDeletion: SecureDeletionConfig{
+			Enabled:      false,           // Disabled by default
+			Standard:     "dod522022",     // DoD 5220.22-M standard
+			CustomPasses: 3,               // 3 passes for custom
+			VerifyWrites: true,            // Verify overwrites
+			ForceSync:    true,            // Force sync to disk
+			BufferSizeKB: 64,              // 64KB buffer
+		},
 	}
 }
 
@@ -69,9 +92,9 @@ categories:
   cache: true            # Browser caches, app caches, system caches
   temp: true             # Temporary files
   logs: true             # Log files
-  duplicates: false      # Duplicate files (CAUTION: Can be aggressive)
   downloads: false       # Old files in Downloads folder (CAUTION: Review before enabling)
   package_managers: true # Package manager caches (brew, apt, npm, etc.)
+  docker: false          # Docker cleanup (requires Docker to be installed)
 
 # Age thresholds (in days) - Only clean files older than these thresholds
 age_thresholds:

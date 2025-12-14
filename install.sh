@@ -1,6 +1,6 @@
 #!/bin/bash
-# CleanupCache Installation Script
-# Usage: curl -sSL https://raw.githubusercontent.com/yourusername/cleanup-cache/main/install.sh | bash
+# CleanupCache Installation Script - v0.3.0
+# Usage: curl -sSL https://raw.githubusercontent.com/fenilsonani/cleanup-cache/main/install.sh | bash
 
 set -e
 
@@ -233,9 +233,9 @@ categories:
   cache: true
   temp: true
   logs: true
-  duplicates: false
   downloads: false
   package_managers: true
+  docker: false
 
 age_thresholds:
   logs: 30

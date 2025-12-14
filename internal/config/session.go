@@ -10,13 +10,13 @@ import (
 
 // Session represents a saved cleanup session
 type Session struct {
-	ID                string    `json:"id"`
-	Timestamp         time.Time `json:timestamp"`
+	ID                 string    `json:"id"`
+	Timestamp          time.Time `json:"timestamp"`
 	SelectedCategories []string  `json:"selected_categories"`
-	SelectedFiles     []string  `json:"selected_files"`
-	TotalSize         int64     `json:"total_size"`
-	TotalCount        int       `json:"total_count"`
-	Notes             string    `json:"notes"`
+	SelectedFiles      []string  `json:"selected_files"`
+	TotalSize          int64     `json:"total_size"`
+	TotalCount         int       `json:"total_count"`
+	Notes              string    `json:"notes"`
 }
 
 // SessionManager manages session persistence

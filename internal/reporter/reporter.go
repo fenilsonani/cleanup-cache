@@ -102,19 +102,19 @@ func (r *Reporter) reportTable(result *scanner.ScanResult) error {
 // reportJSON generates a JSON report
 func (r *Reporter) reportJSON(result *scanner.ScanResult) error {
 	report := struct {
-		Timestamp  string              `json:"timestamp"`
-		TotalFiles int                 `json:"total_files"`
-		TotalSize  int64               `json:"total_size"`
-		TotalSizeFormatted string      `json:"total_size_formatted"`
-		Files      []scanner.FileInfo  `json:"files"`
-		Errors     int                 `json:"errors"`
+		Timestamp          string             `json:"timestamp"`
+		TotalFiles         int                `json:"total_files"`
+		TotalSize          int64              `json:"total_size"`
+		TotalSizeFormatted string             `json:"total_size_formatted"`
+		Files              []scanner.FileInfo `json:"files"`
+		Errors             int                `json:"errors"`
 	}{
-		Timestamp:  time.Now().Format(time.RFC3339),
-		TotalFiles: result.TotalCount,
-		TotalSize:  result.TotalSize,
+		Timestamp:          time.Now().Format(time.RFC3339),
+		TotalFiles:         result.TotalCount,
+		TotalSize:          result.TotalSize,
 		TotalSizeFormatted: utils.FormatBytes(result.TotalSize),
-		Files:      result.Files,
-		Errors:     len(result.Errors),
+		Files:              result.Files,
+		Errors:             len(result.Errors),
 	}
 
 	encoder := json.NewEncoder(r.writer)
@@ -125,19 +125,19 @@ func (r *Reporter) reportJSON(result *scanner.ScanResult) error {
 // reportYAML generates a YAML report
 func (r *Reporter) reportYAML(result *scanner.ScanResult) error {
 	report := struct {
-		Timestamp  string              `yaml:"timestamp"`
-		TotalFiles int                 `yaml:"total_files"`
-		TotalSize  int64               `yaml:"total_size"`
-		TotalSizeFormatted string      `yaml:"total_size_formatted"`
-		Files      []scanner.FileInfo  `yaml:"files"`
-		Errors     int                 `yaml:"errors"`
+		Timestamp          string             `yaml:"timestamp"`
+		TotalFiles         int                `yaml:"total_files"`
+		TotalSize          int64              `yaml:"total_size"`
+		TotalSizeFormatted string             `yaml:"total_size_formatted"`
+		Files              []scanner.FileInfo `yaml:"files"`
+		Errors             int                `yaml:"errors"`
 	}{
-		Timestamp:  time.Now().Format(time.RFC3339),
-		TotalFiles: result.TotalCount,
-		TotalSize:  result.TotalSize,
+		Timestamp:          time.Now().Format(time.RFC3339),
+		TotalFiles:         result.TotalCount,
+		TotalSize:          result.TotalSize,
 		TotalSizeFormatted: utils.FormatBytes(result.TotalSize),
-		Files:      result.Files,
-		Errors:     len(result.Errors),
+		Files:              result.Files,
+		Errors:             len(result.Errors),
 	}
 
 	encoder := yaml.NewEncoder(r.writer)

@@ -129,9 +129,9 @@ func IsProtectedPath(path string) bool {
 		"/sys",
 		"/usr",
 		"/var",
-		"/System",           // macOS
-		"/Applications",     // macOS
-		"/Library/System",   // macOS
+		"/System",         // macOS
+		"/Applications",   // macOS
+		"/Library/System", // macOS
 	}
 
 	for _, protected := range protectedPaths {

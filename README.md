@@ -4,15 +4,16 @@ A powerful, safe, and intelligent CLI tool to clean up your Mac or Linux system 
 
 ## ✨ Features
 
-- 🔍 **Smart Scanning** - Intelligently identifies cleanable files across multiple categories with real-time progress
-- 🎯 **Advanced Interactive Mode** - Professional TUI with sorting, filtering, search, bulk operations, and visual selection
-- 🔒 **Safe & Secure** - Multiple safety layers with risk indicators (LOW/MEDIUM/HIGH) before deletion
-- 🚀 **Fast & Efficient** - Parallel scanning with live progress updates and ETA
+- 🔍 **Smart Scanning** - Intelligently identifies cleanable files across multiple categories
+- 🔒 **Safe & Secure** - Multiple safety layers with confirmation prompts before deletion
+- 🚀 **Fast & Efficient** - Parallel scanning with progress updates
 - 📊 **Detailed Reports** - Multiple output formats (summary, table, JSON, YAML)
 - 🔐 **Permission Management** - Smart sudo handling for system files with pre-flight analysis
 - ⚙️ **Highly Configurable** - Customize what gets cleaned and how
-- 📱 **Responsive Design** - Adapts to any terminal size with smart content truncation
-- ⌨️ **Vim-Style Navigation** - Familiar key bindings (gg, G, j/k, visual mode)
+- 🎯 **Targeted Cleaning** - Clean by category (cache, temp, logs, downloads, etc.)
+- 🐳 **Docker Cleanup** - Clean unused Docker images, containers, volumes, and build cache
+- 🔐 **Secure Deletion** - DoD 5220.22-M and Gutmann secure file wiping standards
+- ⏰ **Daemon Mode** - Scheduled automated cleanups with cron-like scheduling
 
 ## 📦 Installation
 
@@ -46,17 +47,12 @@ mkdir -p ~/.config/cleanup-cache
 cleanup scan
 ```
 
-### 2. Interactive mode (recommended for first-time users)
-```bash
-cleanup interactive
-```
-
-### 3. Clean with preview (dry-run)
+### 2. Clean with preview (dry-run)
 ```bash
 cleanup clean --dry-run
 ```
 
-### 4. Actually clean files
+### 3. Actually clean files
 ```bash
 cleanup clean
 ```
@@ -74,75 +70,28 @@ cleanup scan --output table
 cleanup scan --output json
 ```
 
-#### `cleanup interactive`
-Launch interactive TUI mode with advanced file browser and selection.
-
-```bash
-cleanup interactive
-cleanup interactive --dry-run    # Preview mode
-```
-
-**Interactive Mode Features:**
-- 🔄 **Real-time progress** - Live updates during scan and cleanup with ETA
-- 📊 **Advanced file browser** - Sort, filter, and search through files
-- 🎨 **Professional table layout** - Column headers with sort indicators
-- 🎯 **Visual mode** - Select ranges of files vim-style
-- ⚡ **Bulk operations** - Select files by size, age, or pattern
-- 📱 **Responsive design** - Adapts to any terminal size (80x24+)
-- ⚠️ **Risk indicators** - LOW/MEDIUM/HIGH warnings before deletion
-- 📍 **Status bar** - Always shows selection count and shortcuts
-
-**Key Bindings:**
-```
-Navigation:
-  ↑/↓, j/k      Move up/down
-  gg            Jump to first item
-  G             Jump to last item
-  Ctrl+f, PgDn  Page down
-  Ctrl+b, PgUp  Page up
-
-Selection:
-  Space         Toggle selection
-  x             Toggle + move down (quick select)
-  v             Visual mode (range selection)
-  Ctrl+a        Select all
-  Ctrl+d        Deselect all
-
-File Browser:
-  s             Cycle sort (name/size/date/category)
-  S             Reverse sort order
-  /             Search/filter (fuzzy matching)
-  b             Bulk operations menu
-
-General:
-  Enter         Continue to next screen
-  e             Edit selection (from confirmation)
-  Esc           Back/Cancel
-  ?             Help
-  q, Ctrl+c     Quit
-```
-
 #### `cleanup clean`
-Clean the system based on configuration.
+Clean the system based on your configuration.
 
 ```bash
-cleanup clean                      # Clean everything
-cleanup clean --dry-run            # Preview only
-cleanup clean --category cache     # Clean specific category
-cleanup clean --force              # Skip confirmation
+cleanup clean                    # Interactive with confirmation
+cleanup clean --dry-run         # Preview what will be deleted
+cleanup clean --force           # Skip confirmation prompts
+cleanup clean --category cache  # Clean only specific category
 ```
 
 #### `cleanup report`
-Generate detailed reports in various formats.
+Generate a detailed report of cleanup opportunities.
 
 ```bash
-cleanup report
-cleanup report --output json
-cleanup report --output yaml --file report.yaml
+cleanup report                           # Show summary
+cleanup report --output json             # JSON format
+cleanup report --output yaml             # YAML format
+cleanup report --file report.json        # Save to file
 ```
 
 #### `cleanup config`
-Display current configuration.
+Display current configuration and config file location.
 
 ```bash
 cleanup config
@@ -150,184 +99,327 @@ cleanup config
 
 ### Categories
 
-The tool cleans files in the following categories:
+CleanupCache can clean the following types of files:
 
-| Category | Description | Default |
-|----------|-------------|---------|
-| **cache** | Browser caches, app caches, system caches | ✅ Enabled |
-| **temp** | Temporary files | ✅ Enabled |
-| **logs** | Log files older than threshold | ✅ Enabled |
-| **package_managers** | Brew, npm, pip, apt caches | ✅ Enabled |
-| **duplicates** | Duplicate files (by hash) | ❌ Disabled |
-| **downloads** | Old files in Downloads folder | ❌ Disabled |
+- **cache** - Application caches and temporary data
+- **temp** - Temporary files and directories
+- **logs** - Log files and archives
+- **package_managers** - Package manager caches (npm, pip, go, etc.)
+- **downloads** - Files in Downloads folder older than 30 days
+- **trash** - Items in system trash
+- **browser_cache** - Web browser caches
+- **docker** - Unused Docker containers, images, and volumes
 
-## ⚙️ Configuration
+### Configuration
 
-Configuration file location: `~/.config/cleanup-cache/config.yaml`
-
-### Default Configuration
+The tool will work with default settings, but you can customize behavior by creating a config file at `~/.config/cleanup-cache/config.yaml`:
 
 ```yaml
+# Example configuration file
+# ~/.config/cleanup-cache/config.yaml
+
+# Global settings
+dry_run: false
+verbose: false
+min_file_age: 1  # Hours - never delete files younger than this
+
+# Categories to include/exclude
 categories:
   cache: true
   temp: true
   logs: true
-  duplicates: false          # Disabled - can be aggressive
-  downloads: false           # Disabled - safety first
   package_managers: true
+  downloads: false  # Disabled by default for safety
+  docker: false     # Requires Docker to be installed
 
+# Age thresholds (in days)
 age_thresholds:
-  logs: 30                   # Clean logs older than 30 days
-  downloads: 90              # Clean downloads older than 90 days
-  temp: 7                    # Clean temp files older than 7 days
+  logs: 30
+  downloads: 90
+  temp: 7
 
-size_limits:
-  min_file_size: "1KB"       # Ignore tiny files
-  max_file_size: "10GB"      # Skip huge files (safety)
-
+# Exclusions
 exclude_patterns:
   - "*/important/*"
   - "*.keep"
   - "*/Documents/*"
-  - "*/Pictures/*"
-  - "*/Music/*"
-  - "*/Videos/*"
 
-dry_run: false               # Actually delete files
-min_file_age: 1              # Never delete files < 1 hour old
-verbose: false
-```
+# Docker settings (only applies when docker category is enabled)
+docker:
+  enabled: false
+  clean_images: true
+  clean_containers: true
+  clean_volumes: false        # Disabled - may contain important data
+  clean_build_cache: true
+  only_dangling_images: true  # Only clean untagged images
+  only_stopped_containers: true
+  image_age_days: 7
+  container_age_days: 1
 
-### Edit Configuration
+# Secure deletion (military-grade file wiping)
+secure_deletion:
+  enabled: false              # Disabled by default
+  standard: "dod522022"       # "dod522022", "gutmann", "random", "none"
+  verify_writes: true         # Verify each overwrite pass
+  force_sync: true            # Force sync to disk
 
-```bash
-nano ~/.config/cleanup-cache/config.yaml
+# Daemon mode for scheduled cleanups
+daemon:
+  enabled: false
+  pid_file: "/var/run/cleanup-cache.pid"
+  log_file: "/var/log/cleanup-cache.log"
+  schedules:
+    - name: "daily_cleanup"
+      schedule: "0 2 * * *"   # Every day at 2 AM
+      categories:
+        cache: true
+        temp: true
+      dry_run: false
+  notifications:
+    enabled: false
+    on_success: true
+    on_failure: true
 ```
 
 ## 🛡️ Safety Features
 
-1. **Protected Paths** - Critical system directories are always protected
-2. **Symlink Resolution** - Prevents traversal attacks
-3. **Age Thresholds** - Never deletes recently created files
-4. **Confirmation Prompts** - Double-checks before deletion
-5. **Dry-Run Mode** - Preview changes before applying
-6. **Permission Analysis** - Smart sudo handling
-7. **Special File Detection** - Skips devices, sockets, pipes
-
-### Always Protected Paths
-- `/` (root)
-- `/System`, `/Applications`, `/Library/System` (macOS)
-- `/usr`, `/bin`, `/sbin`, `/etc` (system binaries and configs)
-- `/var`, `/boot`, `/dev`, `/proc`, `/sys` (system directories)
-
-## 🎯 Examples
-
-### Safe Exploration
-```bash
-# Scan and see what can be cleaned
-cleanup scan
-
-# Interactive mode - browse and select files
-cleanup interactive
-
-# Preview what would be deleted
-cleanup clean --dry-run
-```
-
-### Targeted Cleaning
-```bash
-# Clean only cache files
-cleanup clean --category cache
-
-# Clean logs with preview
-cleanup clean --category logs --dry-run
-
-# Clean with confirmation
-cleanup clean
-```
-
-### Generate Reports
-```bash
-# Summary report
-cleanup report
-
-# Detailed table view
-cleanup report --output table
-
-# JSON export
-cleanup report --output json --file cleanup-report.json
-```
+- **Dry Run Mode** - Preview what will be deleted before actually cleaning
+- **Confirmation Prompts** - Interactive confirmation before deletion
+- **Permission Analysis** - Shows which files need elevated permissions
+- **Smart Exclusions** - Automatically excludes important system directories
+- **Size Warnings** - Warns before deleting large files
 
 ## 📊 Output Formats
 
-The tool supports multiple output formats:
+### Summary Format (default)
+```
+📊 System Scan Results
 
-- **summary** - Human-readable summary (default)
-- **table** - Detailed table view
-- **json** - Machine-readable JSON
-- **yaml** - YAML format
+📂 Found 1,234 files (2.3 GB)
+├── 📦 Cache: 892 files (1.8 GB)
+├── 🗂️  Temp Files: 312 files (450 MB)
+├── 📝 Logs: 30 files (50 MB)
+└── 🗑️  Trash: 0 files (0 B)
+```
+
+### Table Format
+```
+┌─────────────┬──────┬────────────┬─────────────────────────────────────┐
+│ CATEGORY    │ COUNT│ SIZE       │ PATH                              │
+├─────────────┼──────┼────────────┼─────────────────────────────────────┤
+│ cache       │  892 │ 1.8 GB     │ ~/Library/Caches                  │
+│ temp        │  312 │ 450 MB     │ /tmp                              │
+└─────────────┴──────┴────────────┴─────────────────────────────────────┘
+```
+
+### JSON Format
+```json
+{
+  "total_count": 1234,
+  "total_size": 2345678901,
+  "categories": {
+    "cache": {
+      "count": 892,
+      "size": 1932735283,
+      "paths": ["/Users/user/Library/Caches"]
+    }
+  }
+}
+```
+
+## 🔄 Automation
+
+### Cron Job
+Set up automatic weekly cleaning:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add weekly cleanup (every Sunday at 2 AM)
+0 2 * * 0 /usr/local/bin/cleanup clean --force
+```
+
+### Script Usage
+Use in scripts with specific options:
+
+```bash
+#!/bin/bash
+# Backup important data before cleaning
+echo "Starting backup..."
+./backup.sh
+
+# Clean with verbose output
+cleanup clean --force --verbose
+
+echo "Cleanup complete!"
+```
+
+## 🐳 Docker Support
+
+Clean Docker resources safely - only stops containers, removes unused images, and cleans build cache:
+
+```bash
+# Preview Docker cleanup
+cleanup clean --category docker --dry-run
+
+# Clean Docker resources
+cleanup clean --category docker --force
+```
+
+**Docker Safety Features:**
+- Only removes **stopped** containers (never running ones)
+- Only removes **dangling/unused** images by default
+- Volumes are disabled by default to prevent data loss
+- Configurable age thresholds for images and containers
+
+## 🔐 Secure Deletion
+
+For sensitive data, enable secure deletion to overwrite files before removing:
+
+```yaml
+# In config.yaml
+secure_deletion:
+  enabled: true
+  standard: "dod522022"  # DoD 5220.22-M (3 passes)
+```
+
+**Available Standards:**
+- `dod522022` - DoD 5220.22-M (3 passes) - Good balance of security and speed
+- `gutmann` - Gutmann method (35 passes) - Maximum security, very slow
+- `random` - Random data overwrite (configurable passes)
+- `none` - Standard deletion (fastest)
+
+## ⏰ Daemon Mode
+
+Run CleanupCache as a background service for automated scheduled cleanups:
+
+```bash
+# Start the daemon
+cleanup-daemon --config ~/.config/cleanup-cache/config.yaml
+
+# Test configuration
+cleanup-daemon --test-config
+
+# Run in foreground (for debugging)
+cleanup-daemon --foreground
+```
+
+**Daemon Features:**
+- Cron-style scheduling (e.g., `"0 2 * * *"` for daily at 2 AM)
+- Multiple schedules with different categories
+- Email and webhook notifications
+- Graceful shutdown handling
+- PID file management
 
 ## 🔧 Advanced Usage
 
-### Custom Config File
+### Clean Specific Categories
 ```bash
-cleanup clean --config /path/to/custom-config.yaml
+# Clean only cache and temp files
+cleanup clean --category cache --force
+
+# Clean multiple categories
+cleanup clean --category cache --category logs --force
 ```
 
-### Verbose Output
+### Generate Reports for Analysis
 ```bash
-cleanup scan --verbose
+# Generate JSON report for analysis
+cleanup report --output json --file analysis.json
+
+# Use with other tools
+cleanup report --output json | jq '.total_size'
 ```
 
-### Force Mode (No Prompts)
+### Configuration Management
 ```bash
-cleanup clean --force
+# Show current configuration
+cleanup config
+
+# Use custom config file
+cleanup --config ~/custom-config.yaml clean
 ```
 
 ## 🐛 Troubleshooting
 
-### Permission Issues
-Some files require sudo. The tool will:
-1. Analyze permissions first
-2. Prompt for password if needed
-3. Use sudo only for files that require it
-
-### Config Not Found
+### Permission Denied
 ```bash
-# View current config location
-cleanup config
-
-# Create default config
-mkdir -p ~/.config/cleanup-cache
+# The tool will prompt for sudo if needed
+# Or run with sudo explicitly
+sudo cleanup clean
 ```
 
-### Build from Source Issues
-```bash
-# Ensure Go 1.21+ is installed
-go version
+### Files Not Deleted
+Check the error output for specific reasons:
 
-# Clean build
-go clean -cache
-go build -o cleanup ./cmd/cleanup
+- **File in use**: Close the application using the file
+- **Permission denied**: Run with sudo or check file ownership
+- **System protection**: Some system files are protected
+
+### Dry Run Shows Different Results
+Files might be created/deleted between scan and actual cleaning. Always run with `--dry-run` first to see current state.
+
+## 📝 Examples
+
+### Before and After
+```bash
+$ cleanup scan
+📊 System Scan Results
+
+📂 Found 2,543 files (4.2 GB)
+├── 📦 Cache: 1,892 files (3.1 GB)
+├── 🗂️  Temp Files: 412 files (850 MB)
+├── 📝 Logs: 239 files (250 MB)
+└── 🗑️  Trash: 0 files (0 B)
+
+$ cleanup clean --force
+Scanning system...
+📊 Cleanup Complete!
+✅ Successfully deleted: 2,543 files (4.2 GB)
 ```
 
-## 📝 License
+### Selective Cleaning
+```bash
+# Only clean caches, leave everything else
+$ cleanup clean --category cache --dry-run
+📊 System Scan Results
 
-MIT License - See LICENSE file for details
+📂 Found 1,892 files (3.1 GB)
+├── 📦 Cache: 1,892 files (3.1 GB)
+
+$ cleanup clean --category cache --force
+✅ Successfully deleted: 1,892 files (3.1 GB)
+```
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit issues or pull requests.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📬 Support
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-- **Issues**: [GitHub Issues](https://github.com/fenilsonani/cleanup-cache/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/fenilsonani/cleanup-cache/discussions)
+## 📄 License
 
-## ⚠️ Disclaimer
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-While this tool includes multiple safety features, **always review what will be deleted** before proceeding. Use `--dry-run` mode first to preview changes. The authors are not responsible for any data loss.
+## 🙏 Acknowledgments
+
+- Built with [Cobra](https://github.com/spf13/cobra) for CLI framework
+- Inspired by various system cleaning tools
+- Thanks to all contributors
+
+## 📞 Support
+
+If you encounter any issues:
+
+1. Check the [Issues](https://github.com/fenilsonani/cleanup-cache/issues) page
+2. Create a new issue with details about your system
+3. Include the output of `cleanup --version`
 
 ---
 
-Made with ❤️ by [Fenil Sonani](https://github.com/fenilsonani)
+**⚠️ Warning**: This tool deletes files permanently. Always review what will be deleted with `--dry-run` first, especially when using `--force`.

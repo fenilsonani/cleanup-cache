@@ -141,8 +141,8 @@ func TestIsProtectedPath(t *testing.T) {
 	pv := NewPathValidator()
 
 	tests := []struct {
-		name       string
-		path       string
+		name        string
+		path        string
 		isProtected bool
 	}{
 		{"root directory", "/", true},
@@ -188,7 +188,7 @@ func TestValidateGlobPattern(t *testing.T) {
 		{"empty pattern", "", false}, // filepath.Match allows empty patterns
 		{"invalid syntax - unmatched bracket", "[abc", true},
 		{"invalid syntax - unmatched brace", "{abc", false}, // Braces not special in filepath.Match
-		{"pattern with traversal", "../*.txt", true}, // Should be rejected
+		{"pattern with traversal", "../*.txt", true},        // Should be rejected
 		{"absolute path pattern", "/etc/*", false},
 		{"home directory pattern", "~/.cache/*", false},
 	}
@@ -284,7 +284,7 @@ func TestDangerousCharacters(t *testing.T) {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
 		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-		len(s) > len(substr) && hasSubstring(s, substr)))
+			len(s) > len(substr) && hasSubstring(s, substr)))
 }
 
 func hasSubstring(s, substr string) bool {

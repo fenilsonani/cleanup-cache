@@ -6,9 +6,9 @@ categories:
   cache: true            # Browser caches, app caches, system caches
   temp: true             # Temporary files
   logs: true             # Log files
-  duplicates: false      # Duplicate files (CAUTION: Can be aggressive)
   downloads: false       # Old files in Downloads folder (CAUTION: Review before enabling)
   package_managers: true # Package manager caches (brew, apt, npm, etc.)
+  docker: false          # Docker cleanup (requires Docker to be installed)
 
 # Age thresholds (in days) - Only clean files older than these thresholds
 age_thresholds:

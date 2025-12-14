@@ -12,15 +12,15 @@ import (
 
 // CleanResult represents the result of a clean operation
 type CleanResult struct {
-	DeletedFiles   []string
-	DeletedSize    int64
-	SkippedFiles   []string
-	SkippedReason  map[string]string
-	Errors         []*DeletionError
-	DryRun         bool
-	UsedSudo       bool
-	SudoSucceeded  int
-	SudoFailed     int
+	DeletedFiles  []string
+	DeletedSize   int64
+	SkippedFiles  []string
+	SkippedReason map[string]string
+	Errors        []*DeletionError
+	DryRun        bool
+	UsedSudo      bool
+	SudoSucceeded int
+	SudoFailed    int
 }
 
 // Cleaner handles file deletion with safeguards

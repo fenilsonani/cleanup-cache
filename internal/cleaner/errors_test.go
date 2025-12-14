@@ -139,8 +139,8 @@ func TestCategorizeError(t *testing.T) {
 
 func TestDeletionError_Error(t *testing.T) {
 	tests := []struct {
-		name        string
-		delErr      *DeletionError
+		name          string
+		delErr        *DeletionError
 		shouldContain string
 	}{
 		{
@@ -332,8 +332,8 @@ func TestUnwrapError(t *testing.T) {
 
 func TestDeletionError_UserMessage(t *testing.T) {
 	tests := []struct {
-		name        string
-		delErr      *DeletionError
+		name          string
+		delErr        *DeletionError
 		shouldContain string
 	}{
 		{
@@ -375,4 +375,3 @@ func TestDeletionError_UserMessage(t *testing.T) {
 		})
 	}
 }
-

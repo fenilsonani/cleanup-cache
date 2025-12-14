@@ -9,12 +9,11 @@ import (
 	"github.com/fenilsonani/cleanup-cache/internal/platform"
 	"github.com/fenilsonani/cleanup-cache/internal/reporter"
 	"github.com/fenilsonani/cleanup-cache/internal/scanner"
-	"github.com/fenilsonani/cleanup-cache/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var (
-	Version   = "0.2.0"
+	Version   = "0.3.0"
 	GitCommit = "unknown"
 	BuildTime = "unknown"
 )
@@ -299,26 +298,6 @@ var configCmd = &cobra.Command{
 	},
 }
 
-var interactiveCmd = &cobra.Command{
-	Use:   "interactive",
-	Short: "Start interactive mode with TUI",
-	Long:  `Launches a full-featured interactive terminal UI for browsing and selecting files to clean.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		// Load config
-		cfg, err := loadConfig()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		// Override config with flags if provided
-		if cmd.Flags().Changed("dry-run") {
-			cfg.DryRun = dryRun
-		}
-
-		// Run interactive mode
-		return ui.RunInteractive(cfg)
-	},
-}
 
 func init() {
 	// Global flags
@@ -337,15 +316,11 @@ func init() {
 	reportCmd.Flags().StringVar(&outputFmt, "output", "summary", "output format (summary, table, json, yaml)")
 	reportCmd.Flags().StringVar(&outputFile, "file", "", "save report to file")
 
-	// Interactive command flags
-	interactiveCmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview mode - no files will be deleted")
-
 	// Add commands
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(reportCmd)
 	rootCmd.AddCommand(configCmd)
-	rootCmd.AddCommand(interactiveCmd)
 }
 
 func loadConfig() (*config.Config, error) {

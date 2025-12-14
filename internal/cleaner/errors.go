@@ -41,9 +41,9 @@ func (e ErrorReason) String() string {
 
 // DeletionError represents a detailed deletion error
 type DeletionError struct {
-	Path     string
-	Reason   ErrorReason
-	Original error
+	Path      string
+	Reason    ErrorReason
+	Original  error
 	Retryable bool
 	NeedsSudo bool
 }

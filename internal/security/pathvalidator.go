@@ -10,6 +10,7 @@ import (
 // PathValidator handles secure path validation for file operations
 type PathValidator struct {
 	protectedPaths []string
+	cache          *PathValidatorCache
 }
 
 // NewPathValidator creates a new PathValidator with default protected paths

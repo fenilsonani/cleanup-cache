@@ -11,15 +11,18 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Categories     Categories     `yaml:"categories"`
-	AgeThresholds  AgeThresholds  `yaml:"age_thresholds"`
-	SizeLimits     SizeLimits     `yaml:"size_limits"`
-	ExcludePattern []string       `yaml:"exclude_patterns"`
-	WhitelistPaths []string       `yaml:"whitelist_paths"`
-	ProtectedPaths []string       `yaml:"protected_paths"`
-	DryRun         bool           `yaml:"dry_run"`
-	MinFileAge     int            `yaml:"min_file_age"` // in hours
-	Verbose        bool           `yaml:"verbose"`
+	Categories       Categories         `yaml:"categories"`
+	AgeThresholds    AgeThresholds      `yaml:"age_thresholds"`
+	SizeLimits       SizeLimits         `yaml:"size_limits"`
+	ExcludePattern   []string           `yaml:"exclude_patterns"`
+	WhitelistPaths   []string           `yaml:"whitelist_paths"`
+	ProtectedPaths   []string           `yaml:"protected_paths"`
+	DryRun           bool               `yaml:"dry_run"`
+	MinFileAge       int                `yaml:"min_file_age"` // in hours
+	Verbose          bool               `yaml:"verbose"`
+	Docker           DockerConfig       `yaml:"docker"`
+	SecureDeletion   SecureDeletionConfig `yaml:"secure_deletion"`
+	Daemon           *DaemonConfig      `yaml:"daemon,omitempty"`
 }
 
 // Categories defines which cleanup categories are enabled
@@ -27,10 +30,84 @@ type Categories struct {
 	Cache           bool `yaml:"cache"`
 	Temp            bool `yaml:"temp"`
 	Logs            bool `yaml:"logs"`
-	Duplicates      bool `yaml:"duplicates"`
 	Downloads       bool `yaml:"downloads"`
 	PackageManagers bool `yaml:"package_managers"`
+	Docker          bool `yaml:"docker"`
 }
+
+// DockerConfig holds Docker cleanup configuration
+type DockerConfig struct {
+	Enabled               bool     `yaml:"enabled"`
+	CleanImages           bool     `yaml:"clean_images"`
+	CleanContainers       bool     `yaml:"clean_containers"`
+	CleanVolumes          bool     `yaml:"clean_volumes"`
+	CleanBuildCache       bool     `yaml:"clean_build_cache"`
+	OnlyDanglingImages    bool     `yaml:"only_dangling_images"`
+	OnlyStoppedContainers bool     `yaml:"only_stopped_containers"`
+	OnlyUnusedVolumes     bool     `yaml:"only_unused_volumes"`
+	ImageAgeDays          int      `yaml:"image_age_days"`
+	ContainerAgeDays      int      `yaml:"container_age_days"`
+	KeepImages            []string `yaml:"keep_images"`
+	KeepContainers        []string `yaml:"keep_containers"`
+	KeepVolumes           []string `yaml:"keep_volumes"`
+}
+
+// SecureDeletionConfig holds secure deletion configuration
+type SecureDeletionConfig struct {
+	Enabled        bool   `yaml:"enabled"`
+	Standard       string `yaml:"standard"` // "dod522022", "gutmann", "random", "none"
+	CustomPasses   int    `yaml:"custom_passes"`
+	VerifyWrites   bool   `yaml:"verify_writes"`
+	ForceSync      bool   `yaml:"force_sync"`
+	BufferSizeKB   int    `yaml:"buffer_size_kb"`
+}
+
+// DaemonConfig holds daemon mode configuration
+type DaemonConfig struct {
+	Enabled       bool              `yaml:"enabled"`
+	PidFile       string            `yaml:"pid_file"`
+	LogFile       string            `yaml:"log_file"`
+	LogLevel      string            `yaml:"log_level"`
+	Schedules     []CleanupSchedule `yaml:"schedules"`
+	Notifications NotificationConfig `yaml:"notifications"`
+}
+
+// CleanupSchedule defines a scheduled cleanup
+type CleanupSchedule struct {
+	Name        string          `yaml:"name"`
+	Schedule    string          `yaml:"schedule"` // Cron expression
+	Categories  map[string]bool `yaml:"categories"`
+	DryRun      bool            `yaml:"dry_run"`
+	SkipIfBusy  bool            `yaml:"skip_if_busy"`
+}
+
+// NotificationConfig holds notification settings
+type NotificationConfig struct {
+	Enabled   bool         `yaml:"enabled"`
+	OnSuccess bool         `yaml:"on_success"`
+	OnFailure bool         `yaml:"on_failure"`
+	Email     EmailConfig  `yaml:"email"`
+	Webhook   WebhookConfig `yaml:"webhook"`
+}
+
+// EmailConfig holds email notification settings
+type EmailConfig struct {
+	SMTPHost string   `yaml:"smtp_host"`
+	SMTPPort int      `yaml:"smtp_port"`
+	Username string   `yaml:"username"`
+	Password string   `yaml:"password"`
+	From     string   `yaml:"from"`
+	To       []string `yaml:"to"`
+	UseTLS   bool     `yaml:"use_tls"`
+}
+
+// WebhookConfig holds webhook notification settings
+type WebhookConfig struct {
+	URL     string            `yaml:"url"`
+	Method  string            `yaml:"method"`
+	Headers map[string]string `yaml:"headers"`
+}
+
 
 // AgeThresholds defines age thresholds for different categories (in days)
 type AgeThresholds struct {
