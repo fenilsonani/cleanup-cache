@@ -78,11 +78,20 @@ print_warning() {
     echo -e "${YELLOW}⚠${NC} $1"
 }
 
-# Reopen stdin from /dev/tty if we're being piped
+# Reopen stdin from /dev/tty if we're being piped and need interactive input
 # This allows interactive prompts to work with `curl | bash`
-if [ ! -t 0 ]; then
-    exec < /dev/tty
-fi
+# Skip if running in force mode (no interactive input needed)
+setup_tty() {
+    if [ ! -t 0 ] && [ "$FORCE_MODE" = "0" ]; then
+        if [ -e /dev/tty ]; then
+            exec < /dev/tty
+        else
+            # No tty available and not in force mode - switch to force mode
+            print_warning "No terminal available for interactive input. Using --force mode."
+            FORCE_MODE=1
+        fi
+    fi
+}
 
 # Check if CleanupCache is already installed
 check_existing_installation() {
@@ -467,6 +476,9 @@ print_update_success() {
 
 # Main installation flow
 main() {
+    # Setup tty for interactive input if needed
+    setup_tty
+
     # Handle uninstall mode
     if [ "$UNINSTALL_MODE" = "1" ]; then
         uninstall
