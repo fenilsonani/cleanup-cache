@@ -78,17 +78,11 @@ print_warning() {
     echo -e "${YELLOW}⚠${NC} $1"
 }
 
-# Read user input (works even when piped from curl)
-# When script is piped, stdin is the pipe, so we read from /dev/tty instead
-read_input() {
-    if [ -t 0 ]; then
-        # stdin is a terminal, read normally
-        read -r REPLY
-    else
-        # stdin is not a terminal (piped), read from /dev/tty
-        read -r REPLY < /dev/tty
-    fi
-}
+# Reopen stdin from /dev/tty if we're being piped
+# This allows interactive prompts to work with `curl | bash`
+if [ ! -t 0 ]; then
+    exec < /dev/tty
+fi
 
 # Check if CleanupCache is already installed
 check_existing_installation() {
@@ -137,8 +131,8 @@ uninstall() {
         echo ""
         print_warning "This will remove CleanupCache from your system."
         echo -n "Are you sure you want to uninstall? (y/N): "
-        read_input
-        if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
             print_info "Uninstallation cancelled."
             exit 0
         fi
@@ -159,8 +153,8 @@ uninstall() {
         echo ""
         if [ "$FORCE_MODE" = "0" ]; then
             echo -n "Remove configuration directory ($CONFIG_DIR)? (y/N): "
-            read_input
-            if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+            read -r response
+            if [[ "$response" =~ ^[Yy]$ ]]; then
                 rm -rf "$CONFIG_DIR"
                 print_success "Configuration removed"
             else
@@ -509,9 +503,9 @@ main() {
                 echo "  3) Cancel"
                 echo ""
                 echo -n "Enter choice [1-3]: "
-                read_input
+                read -r choice
 
-                case $REPLY in
+                case $choice in
                     1)
                         UPDATE_MODE=1
                         ;;
@@ -553,8 +547,8 @@ main() {
             echo ""
             if [ "$FORCE_MODE" = "0" ]; then
                 echo -n "Reinstall anyway? (y/N): "
-                read_input
-                if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
+                read -r response
+                if [[ ! "$response" =~ ^[Yy]$ ]]; then
                     print_info "No changes made."
                     exit 0
                 fi
