@@ -1,6 +1,8 @@
 #!/bin/bash
 # CleanupCache Installation Script - v0.3.0
 # Usage: curl -sSL https://raw.githubusercontent.com/fenilsonani/cleanup-cache/main/install.sh | bash
+# Update: curl -sSL https://raw.githubusercontent.com/fenilsonani/cleanup-cache/main/install.sh | bash -s -- --update
+# Uninstall: curl -sSL https://raw.githubusercontent.com/fenilsonani/cleanup-cache/main/install.sh | bash -s -- --uninstall
 
 set -e
 
@@ -18,6 +20,47 @@ CONFIG_DIR="$HOME/.config/cleanup-cache"
 REPO="fenilsonani/cleanup-cache"
 GITHUB_API="https://api.github.com/repos/$REPO/releases/latest"
 
+# Command line flags
+UPDATE_MODE=0
+UNINSTALL_MODE=0
+FORCE_MODE=0
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --update|-u)
+            UPDATE_MODE=1
+            shift
+            ;;
+        --uninstall|--remove)
+            UNINSTALL_MODE=1
+            shift
+            ;;
+        --force|-f)
+            FORCE_MODE=1
+            shift
+            ;;
+        --help|-h)
+            echo "CleanupCache Installation Script"
+            echo ""
+            echo "Usage:"
+            echo "  install.sh [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --update, -u      Update existing installation to latest version"
+            echo "  --uninstall       Remove CleanupCache from the system"
+            echo "  --force, -f       Skip confirmation prompts"
+            echo "  --help, -h        Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
 # Print colored output
 print_info() {
     echo -e "${BLUE}ℹ${NC} $1"
@@ -33,6 +76,93 @@ print_error() {
 
 print_warning() {
     echo -e "${YELLOW}⚠${NC} $1"
+}
+
+# Check if CleanupCache is already installed
+check_existing_installation() {
+    CURRENT_VERSION=""
+    IS_INSTALLED=0
+
+    if command -v "$BINARY_NAME" &> /dev/null; then
+        IS_INSTALLED=1
+        # Extract version from output like "cleanup version 0.3.0 (commit: xxx, built: xxx)"
+        CURRENT_VERSION=$($BINARY_NAME --version 2>/dev/null | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+        if [ -z "$CURRENT_VERSION" ]; then
+            CURRENT_VERSION="unknown"
+        fi
+    fi
+}
+
+# Compare semantic versions (returns 0 if $1 >= $2, 1 otherwise)
+version_gte() {
+    # Remove 'v' prefix if present
+    local v1="${1#v}"
+    local v2="${2#v}"
+
+    # Use sort -V for version comparison
+    [ "$(printf '%s\n%s' "$v1" "$v2" | sort -V | head -n1)" = "$v2" ]
+}
+
+# Uninstall CleanupCache
+uninstall() {
+    echo ""
+    echo -e "${YELLOW}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║           CleanupCache Uninstallation                    ║${NC}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    check_existing_installation
+
+    if [ "$IS_INSTALLED" = "0" ]; then
+        print_warning "CleanupCache is not installed."
+        exit 0
+    fi
+
+    print_info "Found CleanupCache $CURRENT_VERSION"
+
+    # Confirm uninstall
+    if [ "$FORCE_MODE" = "0" ]; then
+        echo ""
+        print_warning "This will remove CleanupCache from your system."
+        echo -n "Are you sure you want to uninstall? (y/N): "
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            print_info "Uninstallation cancelled."
+            exit 0
+        fi
+    fi
+
+    check_root
+
+    # Remove binary
+    BINARY_PATH="$INSTALL_DIR/$BINARY_NAME"
+    if [ -f "$BINARY_PATH" ]; then
+        print_info "Removing binary: $BINARY_PATH"
+        $USE_SUDO rm -f "$BINARY_PATH"
+        print_success "Binary removed"
+    fi
+
+    # Ask about config
+    if [ -d "$CONFIG_DIR" ]; then
+        echo ""
+        if [ "$FORCE_MODE" = "0" ]; then
+            echo -n "Remove configuration directory ($CONFIG_DIR)? (y/N): "
+            read -r response
+            if [[ "$response" =~ ^[Yy]$ ]]; then
+                rm -rf "$CONFIG_DIR"
+                print_success "Configuration removed"
+            else
+                print_info "Configuration preserved at: $CONFIG_DIR"
+            fi
+        else
+            rm -rf "$CONFIG_DIR"
+            print_success "Configuration removed"
+        fi
+    fi
+
+    echo ""
+    print_success "CleanupCache has been uninstalled."
+    exit 0
 }
 
 # Detect OS and architecture
@@ -316,22 +446,125 @@ print_usage() {
     echo ""
 }
 
+# Print update success message
+print_update_success() {
+    echo ""
+    echo -e "${GREEN}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║         CleanupCache Successfully Updated!              ║${NC}"
+    echo -e "${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  Updated: ${YELLOW}$CURRENT_VERSION${NC} → ${GREEN}$VERSION${NC}"
+    echo ""
+    echo -e "  Run ${YELLOW}cleanup --version${NC} to verify the update."
+    echo ""
+}
+
 # Main installation flow
 main() {
-    echo ""
-    echo -e "${BLUE}╔══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║           CleanupCache Installation Script              ║${NC}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
-    echo ""
+    # Handle uninstall mode
+    if [ "$UNINSTALL_MODE" = "1" ]; then
+        uninstall
+    fi
+
+    # Check for existing installation
+    check_existing_installation
+
+    # Determine mode based on existing installation and flags
+    if [ "$IS_INSTALLED" = "1" ]; then
+        if [ "$UPDATE_MODE" = "1" ]; then
+            # Explicit update mode
+            echo ""
+            echo -e "${BLUE}╔══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${BLUE}║           CleanupCache Update                            ║${NC}"
+            echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
+            echo ""
+            print_info "Current version: $CURRENT_VERSION"
+        else
+            # Already installed, prompt for action
+            echo ""
+            echo -e "${BLUE}╔══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${BLUE}║           CleanupCache Already Installed                 ║${NC}"
+            echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
+            echo ""
+            print_info "Current version: $CURRENT_VERSION"
+            echo ""
+
+            if [ "$FORCE_MODE" = "0" ]; then
+                echo "What would you like to do?"
+                echo ""
+                echo "  1) Update to latest version"
+                echo "  2) Reinstall current version"
+                echo "  3) Cancel"
+                echo ""
+                echo -n "Enter choice [1-3]: "
+                read -r choice
+
+                case $choice in
+                    1)
+                        UPDATE_MODE=1
+                        ;;
+                    2)
+                        print_info "Reinstalling..."
+                        ;;
+                    3|*)
+                        print_info "Installation cancelled."
+                        exit 0
+                        ;;
+                esac
+            else
+                # Force mode - just update
+                UPDATE_MODE=1
+            fi
+        fi
+    else
+        # Fresh install
+        echo ""
+        echo -e "${BLUE}╔══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${BLUE}║           CleanupCache Installation Script               ║${NC}"
+        echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+    fi
 
     detect_platform
     check_root
     check_dependencies
     get_latest_version
+
+    # Check if update is needed
+    if [ "$UPDATE_MODE" = "1" ] && [ "$IS_INSTALLED" = "1" ]; then
+        # Compare versions
+        LATEST_VERSION="${VERSION#v}"
+        INSTALLED_VERSION="${CURRENT_VERSION#v}"
+
+        if [ "$CURRENT_VERSION" != "unknown" ] && version_gte "$INSTALLED_VERSION" "$LATEST_VERSION"; then
+            print_success "You already have the latest version ($CURRENT_VERSION)"
+            echo ""
+            if [ "$FORCE_MODE" = "0" ]; then
+                echo -n "Reinstall anyway? (y/N): "
+                read -r response
+                if [[ ! "$response" =~ ^[Yy]$ ]]; then
+                    print_info "No changes made."
+                    exit 0
+                fi
+            else
+                print_info "No changes made."
+                exit 0
+            fi
+        else
+            print_info "New version available: $VERSION"
+        fi
+    fi
+
     download_and_install
     create_config
     verify_installation
-    print_usage
+
+    # Show appropriate message
+    if [ "$UPDATE_MODE" = "1" ] && [ "$IS_INSTALLED" = "1" ]; then
+        print_update_success
+    else
+        print_usage
+    fi
 }
 
 # Run main function
