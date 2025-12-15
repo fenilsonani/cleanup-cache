@@ -83,7 +83,8 @@ print_warning() {
 # Skip if running in force mode (no interactive input needed)
 setup_tty() {
     if [ ! -t 0 ] && [ "$FORCE_MODE" = "0" ]; then
-        if [ -e /dev/tty ]; then
+        # Try to open /dev/tty - it may exist but not be usable
+        if ( exec < /dev/tty ) 2>/dev/null; then
             exec < /dev/tty
         else
             # No tty available and not in force mode - switch to force mode
