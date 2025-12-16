@@ -146,8 +146,9 @@ func GetDefault() *Config {
 
 // GetExampleConfig returns an example configuration with comments
 func GetExampleConfig() string {
-	return `# CleanupCache Configuration File
+	return `# TidyUp Configuration File
 # This file controls what gets cleaned and how
+# Location: ~/.config/tidyup/config.yaml
 
 # Enable/disable cleanup categories
 categories:
@@ -157,6 +158,13 @@ categories:
   downloads: false       # Old files in Downloads folder (CAUTION: Review before enabling)
   package_managers: true # Package manager caches (brew, apt, npm, etc.)
   docker: false          # Docker cleanup (requires Docker to be installed)
+  # Development artifact categories
+  node_modules: true     # node_modules folders
+  virtual_envs: true     # Python virtual environments (.venv, venv, etc.)
+  build_artifacts: true  # Build output folders (dist, build, target, etc.)
+  # Large and old file scanning
+  large_files: true      # Find large files (uses Spotlight for fast scanning)
+  old_files: true        # Find old unused files
 
 # Age thresholds (in days) - Only clean files older than these thresholds
 age_thresholds:
@@ -206,5 +214,125 @@ min_file_age: 1
 
 # Verbose output - Show detailed information during execution
 verbose: false
+
+# ==============================================================================
+# DEVELOPMENT ARTIFACTS CONFIGURATION
+# ==============================================================================
+# Scan project directories for build artifacts and dependencies that can be rebuilt
+
+dev:
+  # Directories where your projects are located
+  # Use ~ for home directory, e.g., ~/Developer
+  project_dirs:
+    - "~/Projects"
+    - "~/Developer"
+    - "~/Code"
+    - "~/work"
+    - "~/src"
+    - "~/repos"
+
+  # Patterns to match as build artifacts
+  # These are folders/files that can safely be deleted and rebuilt
+  build_patterns:
+    - "node_modules"     # Node.js dependencies
+    - ".next"            # Next.js build output
+    - "dist"             # Common build output folder
+    - "build"            # Common build output folder
+    - "target"           # Rust/Java build output
+    - "__pycache__"      # Python bytecode cache
+    - ".gradle"          # Gradle cache
+    - "*.egg-info"       # Python egg info
+    - ".tox"             # Python tox testing
+    - ".pytest_cache"    # Pytest cache
+    - "vendor"           # Go/PHP vendor dependencies
+    - ".bundle"          # Ruby bundler
+    - "Pods"             # iOS CocoaPods
+
+# ==============================================================================
+# LARGE FILES CONFIGURATION
+# ==============================================================================
+# Find large files that may be taking up unnecessary space
+
+large_files:
+  # Minimum size to consider as "large"
+  min_size: "500MB"
+
+  # Paths to scan for large files
+  scan_paths:
+    - "~"
+
+  # Paths to exclude from large file scanning
+  exclude_paths:
+    - "~/Library"
+    - "~/.Trash"
+    - "/System"
+    - "/Applications"
+    - "~/.local"
+
+  # File extensions to look for (leave empty for all types)
+  file_types:
+    - ".mp4"
+    - ".mkv"
+    - ".avi"
+    - ".mov"
+    - ".iso"
+    - ".dmg"
+    - ".zip"
+    - ".tar.gz"
+    - ".rar"
+    - ".7z"
+
+# ==============================================================================
+# OLD FILES CONFIGURATION
+# ==============================================================================
+# Find files that haven't been accessed in a long time
+
+old_files:
+  # Minimum age in days (files not accessed for this many days)
+  min_age_days: 180  # 6 months
+
+  # Paths to scan for old files
+  scan_paths:
+    - "~/Downloads"
+    - "~/Documents"
+    - "~/Desktop"
+
+  # Paths to exclude from old file scanning
+  exclude_paths:
+    - "~/Documents/Work"
+    - "~/Documents/Important"
+
+# ==============================================================================
+# DOCKER CONFIGURATION
+# ==============================================================================
+# Configure Docker cleanup options (only used when docker category is enabled)
+
+docker:
+  enabled: false
+  clean_images: true
+  clean_containers: true
+  clean_volumes: false          # Volumes may contain data - disabled by default
+  clean_build_cache: true
+  only_dangling_images: true    # Only remove images without tags
+  only_stopped_containers: true # Only remove stopped containers
+  only_unused_volumes: true     # Only remove volumes not in use
+  image_age_days: 7             # Remove images older than 7 days
+  container_age_days: 1         # Remove containers older than 1 day
+  keep_images: []               # Image names/tags to never delete
+  keep_containers: []           # Container names to never delete
+  keep_volumes: []              # Volume names to never delete
+
+# ==============================================================================
+# SECURE DELETION CONFIGURATION
+# ==============================================================================
+# For sensitive data, use secure deletion (slower but more secure)
+
+secure_deletion:
+  enabled: false
+  standard: "dod522022"  # Options: simple, dod522022, gutmann, custom
+  custom_passes: 3       # Number of passes for custom standard
+  verify_writes: true    # Verify overwrites completed
+  force_sync: true       # Force sync to disk after each pass
+  buffer_size_kb: 64     # Buffer size in KB
 `
 }

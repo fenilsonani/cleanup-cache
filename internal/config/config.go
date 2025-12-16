@@ -156,9 +156,12 @@ type SizeLimits struct {
 
 // Load loads configuration from a file
 func Load(configPath string) (*Config, error) {
+	// Start with default config
+	config := GetDefault()
+
 	// If config doesn't exist, return default config
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return GetDefault(), nil
+		return config, nil
 	}
 
 	data, err := os.ReadFile(configPath)
@@ -166,8 +169,8 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	// Unmarshal on top of defaults - this allows partial configs
+	if err := yaml.Unmarshal(data, config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
@@ -176,7 +179,7 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	return &config, nil
+	return config, nil
 }
 
 // Save saves configuration to a file

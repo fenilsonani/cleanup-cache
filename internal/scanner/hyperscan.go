@@ -369,9 +369,7 @@ func (hs *HyperScanner) scanDevArtifacts() {
 	devDirs := make([]string, 0)
 
 	for _, d := range hs.config.Dev.ProjectDirs {
-		if strings.HasPrefix(d, "~") {
-			d = filepath.Join(home, d[1:])
-		}
+		d = expandPath(d, home)
 		if _, err := os.Stat(d); err == nil {
 			devDirs = append(devDirs, d)
 		}
@@ -394,9 +392,7 @@ func (hs *HyperScanner) scanDevArtifactsType(artifactType string) {
 	devDirs := make([]string, 0)
 
 	for _, d := range hs.config.Dev.ProjectDirs {
-		if strings.HasPrefix(d, "~") {
-			d = filepath.Join(home, d[1:])
-		}
+		d = expandPath(d, home)
 		if _, err := os.Stat(d); err == nil {
 			devDirs = append(devDirs, d)
 		}
@@ -711,9 +707,7 @@ func (hs *HyperScanner) scanLargeFilesSpotlight() {
 		// Skip excluded paths
 		skip := false
 		for _, excl := range hs.config.LargeFiles.ExcludePaths {
-			if strings.HasPrefix(excl, "~") {
-				excl = filepath.Join(home, excl[1:])
-			}
+			excl = expandPath(excl, home)
 			if strings.HasPrefix(line, excl) {
 				skip = true
 				break
@@ -738,9 +732,7 @@ func (hs *HyperScanner) scanLargeFilesManual() {
 	minSize := hs.parseSize(hs.config.LargeFiles.MinSize)
 
 	for _, scanPath := range hs.config.LargeFiles.ScanPaths {
-		if strings.HasPrefix(scanPath, "~") {
-			scanPath = filepath.Join(home, scanPath[1:])
-		}
+		scanPath = expandPath(scanPath, home)
 
 		filepath.WalkDir(scanPath, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
@@ -749,9 +741,7 @@ func (hs *HyperScanner) scanLargeFilesManual() {
 
 			// Skip excluded paths
 			for _, excl := range hs.config.LargeFiles.ExcludePaths {
-				if strings.HasPrefix(excl, "~") {
-					excl = filepath.Join(home, excl[1:])
-				}
+				excl = expandPath(excl, home)
 				if strings.HasPrefix(path, excl) {
 					if d.IsDir() {
 						return filepath.SkipDir
@@ -789,9 +779,7 @@ func (hs *HyperScanner) scanOldFilesSpotlight() {
 	query := fmt.Sprintf("kMDItemLastUsedDate < $time.iso(%s)", cutoff.Format("2006-01-02"))
 
 	for _, scanPath := range hs.config.OldFiles.ScanPaths {
-		if strings.HasPrefix(scanPath, "~") {
-			scanPath = filepath.Join(home, scanPath[1:])
-		}
+		scanPath = expandPath(scanPath, home)
 
 		cmd := exec.Command("mdfind", "-onlyin", scanPath, query)
 		var out bytes.Buffer
@@ -1018,4 +1006,15 @@ func dirChecksum(path string) string {
 	}
 	data := fmt.Sprintf("%s:%d:%d", path, info.ModTime().Unix(), info.Size())
 	return fmt.Sprintf("%x", md5.Sum([]byte(data)))
+}
+
+// expandPath expands ~ to home directory
+func expandPath(path, home string) string {
+	if path == "~" {
+		return home
+	}
+	if strings.HasPrefix(path, "~/") {
+		return filepath.Join(home, path[2:])
+	}
+	return path
 }
