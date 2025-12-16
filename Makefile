@@ -8,7 +8,7 @@ PACKAGE=github.com/fenilsonani/system-cleanup
 BUILD_DIR=bin
 
 # Version information
-VERSION?=0.4.0
+VERSION?=0.5.0
 GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 
