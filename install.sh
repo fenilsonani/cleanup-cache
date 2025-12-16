@@ -1,8 +1,8 @@
 #!/bin/bash
-# CleanupCache Installation Script - v0.3.0
-# Usage: curl -sSL https://raw.githubusercontent.com/fenilsonani/cleanup-cache/main/install.sh | bash
-# Update: curl -sSL https://raw.githubusercontent.com/fenilsonani/cleanup-cache/main/install.sh | bash -s -- --update
-# Uninstall: curl -sSL https://raw.githubusercontent.com/fenilsonani/cleanup-cache/main/install.sh | bash -s -- --uninstall
+# TidyUp - System Cleanup Tool Installation Script - v0.5.0
+# Usage: curl -sSL https://raw.githubusercontent.com/fenilsonani/system-cleanup/main/install.sh | bash
+# Update: curl -sSL https://raw.githubusercontent.com/fenilsonani/system-cleanup/main/install.sh | bash -s -- --update
+# Uninstall: curl -sSL https://raw.githubusercontent.com/fenilsonani/system-cleanup/main/install.sh | bash -s -- --uninstall
 
 set -e
 
@@ -11,14 +11,21 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
-BINARY_NAME="cleanup"
+BINARY_NAME="tidyup"
 INSTALL_DIR="/usr/local/bin"
-CONFIG_DIR="$HOME/.config/cleanup-cache"
+CONFIG_DIR="$HOME/.config/tidyup"
+CACHE_DIR="$HOME/.cache/tidyup"
 REPO="fenilsonani/cleanup-cache"
 GITHUB_API="https://api.github.com/repos/$REPO/releases/latest"
+
+# Old config location for migration
+OLD_CONFIG_DIR="$HOME/.config/cleanup-cache"
+OLD_BINARY_NAME="cleanup"
+OLD_CACHE_DIR="$HOME/.cache/cleanup-cache"
 
 # Command line flags
 UPDATE_MODE=0
@@ -41,16 +48,18 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "CleanupCache Installation Script"
+            echo "TidyUp - System Cleanup Tool Installation Script"
             echo ""
             echo "Usage:"
             echo "  install.sh [OPTIONS]"
             echo ""
             echo "Options:"
             echo "  --update, -u      Update existing installation to latest version"
-            echo "  --uninstall       Remove CleanupCache from the system"
+            echo "  --uninstall       Remove TidyUp from the system"
             echo "  --force, -f       Skip confirmation prompts"
             echo "  --help, -h        Show this help message"
+            echo ""
+            echo "Performance: First scan ~10s, cached scans ~0.2s"
             exit 0
             ;;
         *)
@@ -94,7 +103,7 @@ setup_tty() {
     fi
 }
 
-# Check if CleanupCache is already installed
+# Check if Tidy is already installed
 check_existing_installation() {
     CURRENT_VERSION=""
     IS_INSTALLED=0
@@ -119,27 +128,27 @@ version_gte() {
     [ "$(printf '%s\n%s' "$v1" "$v2" | sort -V | head -n1)" = "$v2" ]
 }
 
-# Uninstall CleanupCache
+# Uninstall Tidy
 uninstall() {
     echo ""
-    echo -e "${YELLOW}╔══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${YELLOW}║           CleanupCache Uninstallation                    ║${NC}"
-    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║                    TidyUp Uninstallation                         ║${NC}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
     check_existing_installation
 
     if [ "$IS_INSTALLED" = "0" ]; then
-        print_warning "CleanupCache is not installed."
+        print_warning "TidyUp is not installed."
         exit 0
     fi
 
-    print_info "Found CleanupCache $CURRENT_VERSION"
+    print_info "Found TidyUp $CURRENT_VERSION"
 
     # Confirm uninstall
     if [ "$FORCE_MODE" = "0" ]; then
         echo ""
-        print_warning "This will remove CleanupCache from your system."
+        print_warning "This will remove TidyUp from your system."
         echo -n "Are you sure you want to uninstall? (y/N): "
         read -r response
         if [[ ! "$response" =~ ^[Yy]$ ]]; then
@@ -158,26 +167,31 @@ uninstall() {
         print_success "Binary removed"
     fi
 
-    # Ask about config
-    if [ -d "$CONFIG_DIR" ]; then
+    # Ask about config and cache
+    if [ -d "$CONFIG_DIR" ] || [ -d "$CACHE_DIR" ]; then
         echo ""
         if [ "$FORCE_MODE" = "0" ]; then
-            echo -n "Remove configuration directory ($CONFIG_DIR)? (y/N): "
+            echo -n "Remove configuration and cache directories? (y/N): "
             read -r response
             if [[ "$response" =~ ^[Yy]$ ]]; then
-                rm -rf "$CONFIG_DIR"
-                print_success "Configuration removed"
+                [ -d "$CONFIG_DIR" ] && rm -rf "$CONFIG_DIR" && print_success "Configuration removed: $CONFIG_DIR"
+                [ -d "$CACHE_DIR" ] && rm -rf "$CACHE_DIR" && print_success "Cache removed: $CACHE_DIR"
             else
                 print_info "Configuration preserved at: $CONFIG_DIR"
+                print_info "Cache preserved at: $CACHE_DIR"
             fi
         else
-            rm -rf "$CONFIG_DIR"
-            print_success "Configuration removed"
+            [ -d "$CONFIG_DIR" ] && rm -rf "$CONFIG_DIR" && print_success "Configuration removed"
+            [ -d "$CACHE_DIR" ] && rm -rf "$CACHE_DIR" && print_success "Cache removed"
         fi
     fi
 
+    # Also clean up old locations if they exist
+    [ -d "$OLD_CONFIG_DIR" ] && rm -rf "$OLD_CONFIG_DIR" && print_info "Removed old config: $OLD_CONFIG_DIR"
+    [ -d "$OLD_CACHE_DIR" ] && rm -rf "$OLD_CACHE_DIR" && print_info "Removed old cache: $OLD_CACHE_DIR"
+
     echo ""
-    print_success "CleanupCache has been uninstalled."
+    print_success "TidyUp has been uninstalled."
     exit 0
 }
 
@@ -265,7 +279,7 @@ get_latest_version() {
 
 # Build from source (fallback if no release available)
 build_from_source() {
-    print_info "Building CleanupCache from source..."
+    print_info "Building TidyUp from source..."
 
     # Check if Go is installed
     if ! command -v go &> /dev/null; then
@@ -282,7 +296,7 @@ build_from_source() {
     git clone "https://github.com/$REPO.git" .
 
     print_info "Building binary..."
-    go build -o "$BINARY_NAME" ./cmd/cleanup
+    go build -o "$BINARY_NAME" ./cmd/tidyup
 
     print_info "Installing binary to $INSTALL_DIR..."
     $USE_SUDO mv "$BINARY_NAME" "$INSTALL_DIR/"
@@ -301,16 +315,16 @@ download_and_install() {
     fi
 
     # Construct download URL
-    DOWNLOAD_URL="https://github.com/$REPO/releases/download/${VERSION}/cleanup-${OS}-${ARCH}.tar.gz"
+    DOWNLOAD_URL="https://github.com/$REPO/releases/download/${VERSION}/tidyup-${OS}-${ARCH}.tar.gz"
 
-    print_info "Downloading CleanupCache ${VERSION}..."
+    print_info "Downloading TidyUp ${VERSION}..."
 
     # Create temporary directory
     TMP_DIR=$(mktemp -d)
     cd "$TMP_DIR"
 
     # Download
-    if ! curl -sSL "$DOWNLOAD_URL" -o cleanup.tar.gz; then
+    if ! curl -sSL "$DOWNLOAD_URL" -o tidyup.tar.gz; then
         print_warning "Failed to download prebuilt binary."
         print_info "Falling back to building from source..."
         BUILD_FROM_SOURCE=1
@@ -320,14 +334,14 @@ download_and_install() {
 
     # Extract
     print_info "Extracting binary..."
-    tar -xzf cleanup.tar.gz
+    tar -xzf tidyup.tar.gz
 
     # Debug: Show what was extracted
     print_info "Extracted files:"
     ls -la
 
     # Check if the expected binary exists
-    EXTRACTED_BINARY="cleanup-${OS}-${ARCH}"
+    EXTRACTED_BINARY="tidyup-${OS}-${ARCH}"
     if [ ! -f "$EXTRACTED_BINARY" ]; then
         print_error "Expected binary not found: $EXTRACTED_BINARY"
         print_error "Contents of directory:"
@@ -366,32 +380,119 @@ download_and_install() {
 create_config() {
     print_info "Setting up configuration..."
 
+    # Create config directory
     if [ ! -d "$CONFIG_DIR" ]; then
         mkdir -p "$CONFIG_DIR"
         print_success "Created config directory: $CONFIG_DIR"
     fi
 
+    # Create cache directory for scan cache
+    if [ ! -d "$CACHE_DIR" ]; then
+        mkdir -p "$CACHE_DIR"
+        print_success "Created cache directory: $CACHE_DIR"
+    fi
+
+    # Migrate from old config location if it exists
+    if [ -d "$OLD_CONFIG_DIR" ] && [ ! -f "$CONFIG_DIR/config.yaml" ]; then
+        if [ -f "$OLD_CONFIG_DIR/config.yaml" ]; then
+            print_info "Migrating config from $OLD_CONFIG_DIR..."
+            cp "$OLD_CONFIG_DIR/config.yaml" "$CONFIG_DIR/config.yaml"
+            print_success "Config migrated successfully"
+        fi
+    fi
+
     if [ ! -f "$CONFIG_DIR/config.yaml" ]; then
         print_info "Creating default configuration file..."
         cat > "$CONFIG_DIR/config.yaml" << 'EOF'
-# CleanupCache Configuration File
+# TidyUp - System Cleanup Tool Configuration
+# https://github.com/fenilsonani/system-cleanup
+
+# Enable/disable cleanup categories
 categories:
-  cache: true
-  temp: true
-  logs: true
-  downloads: false
-  package_managers: true
-  docker: false
+  cache: true              # Browser and app caches
+  temp: true               # Temporary files
+  logs: true               # Log files
+  downloads: false         # Old downloads (disabled by default - review before enabling)
+  package_managers: true   # Package manager caches (npm, brew, pip, etc.)
+  docker: false            # Docker cleanup (requires Docker installation)
+  # Development artifacts - enabled by default
+  node_modules: true       # Node.js dependencies (finds node_modules with package.json)
+  virtual_envs: true       # Python virtual environments (venv, .venv)
+  build_artifacts: true    # Build outputs (.next, dist, build, target, __pycache__)
+  # Large and old file detection - uses Spotlight for speed on macOS
+  large_files: true        # Large files (>500MB by default)
+  old_files: true          # Old unused files (>180 days by default)
 
+# Age thresholds (in days)
 age_thresholds:
-  logs: 30
-  downloads: 90
-  temp: 7
+  logs: 30                 # Clean log files older than 30 days
+  downloads: 90            # Clean downloads older than 90 days
+  temp: 7                  # Clean temp files older than 7 days
 
+# Size limits
 size_limits:
-  min_file_size: "1KB"
-  max_file_size: "10GB"
+  min_file_size: "1KB"     # Ignore files smaller than this
+  max_file_size: "10GB"    # Skip files larger than this (safety measure)
 
+# Development project directories to scan
+dev:
+  project_dirs:
+    - "~/Projects"
+    - "~/Developer"
+    - "~/Code"
+    - "~/work"
+    - "~/src"
+    - "~/repos"
+  build_patterns:
+    - "node_modules"
+    - ".next"
+    - "dist"
+    - "build"
+    - "target"
+    - "__pycache__"
+    - ".gradle"
+    - "*.egg-info"
+    - ".tox"
+    - ".pytest_cache"
+    - "vendor"
+    - ".bundle"
+    - "Pods"
+
+# Large files detection config
+large_files:
+  min_size: "500MB"        # Files larger than this are flagged
+  scan_paths:
+    - "~"
+  exclude_paths:
+    - "~/Library"
+    - "~/.Trash"
+    - "/System"
+    - "/Applications"
+    - "~/.local"
+  file_types:              # Focus on these file types
+    - ".mp4"
+    - ".mkv"
+    - ".avi"
+    - ".mov"
+    - ".iso"
+    - ".dmg"
+    - ".zip"
+    - ".tar.gz"
+    - ".rar"
+    - ".7z"
+
+# Old files detection config
+old_files:
+  min_age_days: 180        # Files not accessed in this many days
+  scan_paths:
+    - "~/Downloads"
+    - "~/Documents"
+    - "~/Desktop"
+  exclude_paths:
+    - "~/Documents/Work"
+    - "~/Documents/Important"
+
+# Exclude patterns (glob patterns)
 exclude_patterns:
   - "*/important/*"
   - "*.keep"
@@ -399,10 +500,33 @@ exclude_patterns:
   - "*/Pictures/*"
   - "*/Music/*"
   - "*/Videos/*"
+  - "*/Movies/*"
 
-dry_run: false
-min_file_age: 1
-verbose: false
+# Protected paths - these will never be touched
+protected_paths:
+  - "/"
+  - "/System"
+  - "/Applications"
+  - "/usr"
+  - "/etc"
+  - "/var"
+
+# Runtime settings
+dry_run: false             # Set to true to preview without deleting
+min_file_age: 1            # Never delete files younger than 1 hour
+verbose: false             # Show detailed output
+
+# Docker cleanup settings (only if docker category is enabled)
+docker:
+  enabled: false
+  clean_images: true
+  clean_containers: true
+  clean_volumes: false     # Disabled - volumes may contain data
+  clean_build_cache: true
+  only_dangling_images: true
+  only_stopped_containers: true
+  image_age_days: 7
+  container_age_days: 1
 EOF
         print_success "Created default config: $CONFIG_DIR/config.yaml"
     else
@@ -427,37 +551,52 @@ verify_installation() {
 # Print usage instructions
 print_usage() {
     echo ""
-    echo -e "${GREEN}╔══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║         CleanupCache Successfully Installed!             ║${NC}"
-    echo -e "${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${GREEN}╔══════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║              TidyUp Successfully Installed!                      ║${NC}"
+    echo -e "${GREEN}╚══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "${BLUE}Quick Start:${NC}"
     echo ""
-    echo -e "  ${YELLOW}cleanup scan${NC}             - Scan system for cleanable files"
-    echo -e "  ${YELLOW}cleanup clean${NC}            - Clean based on configuration"
-    echo -e "  ${YELLOW}cleanup clean --dry-run${NC}  - Preview what would be deleted"
-    echo -e "  ${YELLOW}cleanup report${NC}           - Generate detailed report"
-    echo -e "  ${YELLOW}cleanup config${NC}           - Show current configuration"
+    echo -e "  ${YELLOW}tidyup scan${NC}                  Scan system for cleanable files"
+    echo -e "  ${YELLOW}tidyup clean${NC}                 Clean files based on configuration"
+    echo -e "  ${YELLOW}tidyup scan --detailed${NC}       Show detailed breakdown by location"
+    echo -e "  ${YELLOW}tidyup scan --live${NC}           Show live progress during scan"
+    echo ""
+    echo -e "${BLUE}Category-specific scanning:${NC}"
+    echo ""
+    echo -e "  ${YELLOW}tidyup clean --category cache${NC}         Clean only cache files"
+    echo -e "  ${YELLOW}tidyup clean --category node_modules${NC}  Clean only node_modules"
+    echo -e "  ${YELLOW}tidyup clean --category build_artifacts${NC} Clean build outputs"
     echo ""
     echo -e "${BLUE}Examples:${NC}"
     echo ""
     echo -e "  # Preview what would be deleted (dry-run)"
-    echo -e "  ${YELLOW}cleanup clean --dry-run${NC}"
+    echo -e "  ${YELLOW}tidyup clean --dry-run${NC}"
     echo ""
-    echo -e "  # Clean specific category only"
-    echo -e "  ${YELLOW}cleanup clean --category cache${NC}"
+    echo -e "  # Clean a specific category"
+    echo -e "  ${YELLOW}tidyup clean --category temp${NC}"
     echo ""
-    echo -e "  # Force clean without confirmation"
-    echo -e "  ${YELLOW}cleanup clean --force${NC}"
+    echo -e "${BLUE}Performance:${NC}"
     echo ""
-    echo -e "  # Generate JSON report"
-    echo -e "  ${YELLOW}cleanup report --output json${NC}"
+    echo -e "  ${CYAN}First scan:${NC}   ~10 seconds (builds cache)"
+    echo -e "  ${CYAN}Cached scan:${NC}  ~0.2 seconds (near-instant)"
+    echo ""
+    echo -e "  TidyUp uses intelligent caching and Spotlight (macOS) for"
+    echo -e "  blazing fast scans. Cache is stored at: ${YELLOW}$CACHE_DIR${NC}"
     echo ""
     echo -e "${BLUE}Configuration:${NC}"
+    echo ""
     echo -e "  Config file: ${YELLOW}$CONFIG_DIR/config.yaml${NC}"
     echo -e "  Edit config: ${YELLOW}nano $CONFIG_DIR/config.yaml${NC}"
     echo ""
+    echo -e "${BLUE}Categories available:${NC}"
+    echo ""
+    echo -e "  cache, temp, logs, downloads, package_managers, docker"
+    echo -e "  node_modules, virtual_envs, build_artifacts"
+    echo -e "  large_files, old_files"
+    echo ""
     echo -e "${BLUE}Documentation:${NC}"
+    echo ""
     echo -e "  GitHub: ${YELLOW}https://github.com/$REPO${NC}"
     echo ""
 }
@@ -465,13 +604,14 @@ print_usage() {
 # Print update success message
 print_update_success() {
     echo ""
-    echo -e "${GREEN}╔══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║         CleanupCache Successfully Updated!              ║${NC}"
-    echo -e "${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${GREEN}╔══════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║              TidyUp Successfully Updated!                        ║${NC}"
+    echo -e "${GREEN}╚══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "  Updated: ${YELLOW}$CURRENT_VERSION${NC} → ${GREEN}$VERSION${NC}"
     echo ""
-    echo -e "  Run ${YELLOW}cleanup --version${NC} to verify the update."
+    echo -e "  Run ${YELLOW}tidyup --version${NC} to verify the update."
+    echo -e "  Run ${YELLOW}tidyup scan${NC} to test (cached scans are near-instant!)"
     echo ""
 }
 
@@ -493,17 +633,17 @@ main() {
         if [ "$UPDATE_MODE" = "1" ]; then
             # Explicit update mode
             echo ""
-            echo -e "${BLUE}╔══════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${BLUE}║           CleanupCache Update                            ║${NC}"
-            echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${BLUE}╔══════════════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${BLUE}║                      TidyUp Update                                ║${NC}"
+            echo -e "${BLUE}╚══════════════════════════════════════════════════════════════════╝${NC}"
             echo ""
             print_info "Current version: $CURRENT_VERSION"
         else
             # Already installed, prompt for action
             echo ""
-            echo -e "${BLUE}╔══════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${BLUE}║           CleanupCache Already Installed                 ║${NC}"
-            echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
+            echo -e "${BLUE}╔══════════════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${BLUE}║                  TidyUp Already Installed                        ║${NC}"
+            echo -e "${BLUE}╚══════════════════════════════════════════════════════════════════╝${NC}"
             echo ""
             print_info "Current version: $CURRENT_VERSION"
             echo ""
@@ -538,9 +678,9 @@ main() {
     else
         # Fresh install
         echo ""
-        echo -e "${BLUE}╔══════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${BLUE}║           CleanupCache Installation Script               ║${NC}"
-        echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${BLUE}╔══════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${BLUE}║                  TidyUp Installation Script                       ║${NC}"
+        echo -e "${BLUE}╚══════════════════════════════════════════════════════════════════╝${NC}"
         echo ""
     fi
 

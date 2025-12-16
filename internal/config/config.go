@@ -5,24 +5,28 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/fenilsonani/cleanup-cache/internal/security"
+	"github.com/fenilsonani/system-cleanup/internal/security"
 	"gopkg.in/yaml.v3"
 )
 
 // Config represents the application configuration
 type Config struct {
-	Categories       Categories         `yaml:"categories"`
-	AgeThresholds    AgeThresholds      `yaml:"age_thresholds"`
-	SizeLimits       SizeLimits         `yaml:"size_limits"`
-	ExcludePattern   []string           `yaml:"exclude_patterns"`
-	WhitelistPaths   []string           `yaml:"whitelist_paths"`
-	ProtectedPaths   []string           `yaml:"protected_paths"`
-	DryRun           bool               `yaml:"dry_run"`
-	MinFileAge       int                `yaml:"min_file_age"` // in hours
-	Verbose          bool               `yaml:"verbose"`
-	Docker           DockerConfig       `yaml:"docker"`
+	Categories       Categories           `yaml:"categories"`
+	AgeThresholds    AgeThresholds        `yaml:"age_thresholds"`
+	SizeLimits       SizeLimits           `yaml:"size_limits"`
+	ExcludePattern   []string             `yaml:"exclude_patterns"`
+	WhitelistPaths   []string             `yaml:"whitelist_paths"`
+	ProtectedPaths   []string             `yaml:"protected_paths"`
+	DryRun           bool                 `yaml:"dry_run"`
+	MinFileAge       int                  `yaml:"min_file_age"` // in hours
+	Verbose          bool                 `yaml:"verbose"`
+	Docker           DockerConfig         `yaml:"docker"`
 	SecureDeletion   SecureDeletionConfig `yaml:"secure_deletion"`
-	Daemon           *DaemonConfig      `yaml:"daemon,omitempty"`
+	Daemon           *DaemonConfig        `yaml:"daemon,omitempty"`
+	// New configuration sections
+	Dev        DevConfig        `yaml:"dev"`
+	LargeFiles LargeFilesConfig `yaml:"large_files_config"`
+	OldFiles   OldFilesConfig   `yaml:"old_files_config"`
 }
 
 // Categories defines which cleanup categories are enabled
@@ -33,6 +37,13 @@ type Categories struct {
 	Downloads       bool `yaml:"downloads"`
 	PackageManagers bool `yaml:"package_managers"`
 	Docker          bool `yaml:"docker"`
+	// Development artifact categories
+	NodeModules    bool `yaml:"node_modules"`
+	VirtualEnvs    bool `yaml:"virtual_envs"`
+	BuildArtifacts bool `yaml:"build_artifacts"`
+	// Large and old file categories
+	LargeFiles bool `yaml:"large_files"`
+	OldFiles   bool `yaml:"old_files"`
 }
 
 // DockerConfig holds Docker cleanup configuration
@@ -114,6 +125,27 @@ type AgeThresholds struct {
 	Logs      int `yaml:"logs"`
 	Downloads int `yaml:"downloads"`
 	Temp      int `yaml:"temp"`
+}
+
+// DevConfig holds development artifact scanning configuration
+type DevConfig struct {
+	ProjectDirs   []string `yaml:"project_dirs"`   // Directories to scan for projects
+	BuildPatterns []string `yaml:"build_patterns"` // Patterns to match build artifacts
+}
+
+// LargeFilesConfig holds large file detection configuration
+type LargeFilesConfig struct {
+	MinSize      string   `yaml:"min_size"`      // Minimum size to flag (e.g., "500MB")
+	ScanPaths    []string `yaml:"scan_paths"`    // Paths to scan (default: home dir)
+	ExcludePaths []string `yaml:"exclude_paths"` // Paths to exclude from scan
+	FileTypes    []string `yaml:"file_types"`    // File extensions to look for
+}
+
+// OldFilesConfig holds old/unused file detection configuration
+type OldFilesConfig struct {
+	MinAgeDays   int      `yaml:"min_age_days"`  // Minimum age in days to flag
+	ScanPaths    []string `yaml:"scan_paths"`    // Paths to scan
+	ExcludePaths []string `yaml:"exclude_paths"` // Paths to exclude
 }
 
 // SizeLimits defines size limits for files to consider
@@ -216,7 +248,7 @@ func GetConfigPath() (string, error) {
 		return "", err
 	}
 
-	configDir := filepath.Join(homeDir, ".config", "cleanup-cache")
+	configDir := filepath.Join(homeDir, ".config", "tidyup")
 	return filepath.Join(configDir, "config.yaml"), nil
 }
 

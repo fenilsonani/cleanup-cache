@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/fenilsonani/cleanup-cache/internal/scanner"
-	"github.com/fenilsonani/cleanup-cache/pkg/utils"
+	"github.com/fenilsonani/system-cleanup/internal/scanner"
+	"github.com/fenilsonani/system-cleanup/pkg/utils"
 	"gopkg.in/yaml.v3"
 )
 

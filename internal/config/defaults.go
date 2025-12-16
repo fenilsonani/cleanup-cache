@@ -10,6 +10,13 @@ func GetDefault() *Config {
 			Downloads:       false, // Disabled by default to prevent accidental deletion
 			PackageManagers: true,
 			Docker:          false, // Disabled by default - requires explicit opt-in
+			// Development artifact categories - enabled by default
+			NodeModules:    true,
+			VirtualEnvs:    true,
+			BuildArtifacts: true,
+			// Large and old file categories - enabled (uses Spotlight for speed)
+			LargeFiles: true,
+			OldFiles:   true,
 		},
 		AgeThresholds: AgeThresholds{
 			Logs:      30, // 30 days
@@ -78,6 +85,61 @@ func GetDefault() *Config {
 			VerifyWrites: true,            // Verify overwrites
 			ForceSync:    true,            // Force sync to disk
 			BufferSizeKB: 64,              // 64KB buffer
+		},
+		Dev: DevConfig{
+			ProjectDirs: []string{
+				"~/Projects",
+				"~/Developer",
+				"~/Code",
+				"~/work",
+				"~/src",
+				"~/repos",
+			},
+			BuildPatterns: []string{
+				"node_modules",
+				".next",
+				"dist",
+				"build",
+				"target",
+				"__pycache__",
+				".gradle",
+				"*.egg-info",
+				".tox",
+				".pytest_cache",
+				"vendor",
+				".bundle",
+				"Pods",
+			},
+		},
+		LargeFiles: LargeFilesConfig{
+			MinSize: "500MB",
+			ScanPaths: []string{
+				"~",
+			},
+			ExcludePaths: []string{
+				"~/Library",
+				"~/.Trash",
+				"/System",
+				"/Applications",
+				"~/.local",
+			},
+			FileTypes: []string{
+				".mp4", ".mkv", ".avi", ".mov",
+				".iso", ".dmg",
+				".zip", ".tar.gz", ".rar", ".7z",
+			},
+		},
+		OldFiles: OldFilesConfig{
+			MinAgeDays: 180, // 6 months
+			ScanPaths: []string{
+				"~/Downloads",
+				"~/Documents",
+				"~/Desktop",
+			},
+			ExcludePaths: []string{
+				"~/Documents/Work",
+				"~/Documents/Important",
+			},
 		},
 	}
 }

@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fenilsonani/cleanup-cache/internal/cleaner"
-	"github.com/fenilsonani/cleanup-cache/internal/config"
-	"github.com/fenilsonani/cleanup-cache/internal/platform"
-	"github.com/fenilsonani/cleanup-cache/internal/scanner"
+	"github.com/fenilsonani/system-cleanup/internal/cleaner"
+	"github.com/fenilsonani/system-cleanup/internal/config"
+	"github.com/fenilsonani/system-cleanup/internal/platform"
+	"github.com/fenilsonani/system-cleanup/internal/scanner"
 )
 
 // Daemon represents the cleanup daemon
@@ -148,8 +148,8 @@ func (d *Daemon) RunCleanupJob(job *CleanupJob) error {
 	// Create job-specific config
 	jobConfig := d.createJobConfig(job)
 
-	// Create scanner
-	scnr := scanner.NewOptimized(jobConfig, platformInfo)
+	// Create scanner (HyperScanner for blazing fast cached scans)
+	scnr := scanner.NewHyperScanner(jobConfig, platformInfo)
 
 	// Perform scan
 	scanResult, err := scnr.ScanAll()

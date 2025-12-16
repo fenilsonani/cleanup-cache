@@ -1,4 +1,4 @@
-module github.com/fenilsonani/cleanup-cache
+module github.com/fenilsonani/system-cleanup
 
 go 1.25.3
 

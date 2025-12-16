@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fenilsonani/cleanup-cache/internal/config"
-	"github.com/fenilsonani/cleanup-cache/internal/daemon"
+	"github.com/fenilsonani/system-cleanup/internal/config"
+	"github.com/fenilsonani/system-cleanup/internal/daemon"
 )
 
 var (

@@ -1,14 +1,14 @@
 .PHONY: build install test clean run fmt vet lint build-all help
 
 # Binary name
-BINARY_NAME=cleanup
-PACKAGE=github.com/fenilsonani/cleanup-cache
+BINARY_NAME=tidyup
+PACKAGE=github.com/fenilsonani/system-cleanup
 
 # Build directory
 BUILD_DIR=bin
 
 # Version information
-VERSION?=0.1.0
+VERSION?=0.4.0
 GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 
@@ -19,19 +19,19 @@ LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.GitCommit=$(GIT_COMMIT) -X 
 all: build
 
 help: ## Display this help message
-	@echo "CleanupCache - Makefile Commands"
-	@echo "================================="
+	@echo "Tidy - System Cleanup Tool - Makefile Commands"
+	@echo "==============================================="
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 build: ## Build the binary
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir -p $(BUILD_DIR)
-	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/cleanup
+	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/tidyup
 	@echo "Build complete: $(BUILD_DIR)/$(BINARY_NAME)"
 
 install: ## Install the binary to /usr/local/bin
 	@echo "Installing $(BINARY_NAME)..."
-	go install $(LDFLAGS) ./cmd/cleanup
+	go install $(LDFLAGS) ./cmd/tidyup
 	@echo "Installed successfully"
 
 run: build ## Build and run the application
@@ -74,14 +74,14 @@ build-all: build-linux build-darwin ## Build for all platforms
 build-linux: ## Build for Linux (amd64)
 	@echo "Building for Linux..."
 	@mkdir -p $(BUILD_DIR)/linux
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/linux/$(BINARY_NAME) ./cmd/cleanup
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/linux/$(BINARY_NAME) ./cmd/tidyup
 	@echo "Linux build complete: $(BUILD_DIR)/linux/$(BINARY_NAME)"
 
 build-darwin: ## Build for macOS (amd64 and arm64)
 	@echo "Building for macOS..."
 	@mkdir -p $(BUILD_DIR)/darwin
-	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/darwin/$(BINARY_NAME)-amd64 ./cmd/cleanup
-	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/darwin/$(BINARY_NAME)-arm64 ./cmd/cleanup
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/darwin/$(BINARY_NAME)-amd64 ./cmd/tidyup
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/darwin/$(BINARY_NAME)-arm64 ./cmd/tidyup
 	@echo "macOS builds complete"
 
 deps: ## Download dependencies

@@ -9,8 +9,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/fenilsonani/cleanup-cache/internal/cleaner"
-	"github.com/fenilsonani/cleanup-cache/internal/config"
+	"github.com/fenilsonani/system-cleanup/internal/cleaner"
+	"github.com/fenilsonani/system-cleanup/internal/config"
 )
 
 // Notifier handles notifications for the daemon

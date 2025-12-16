@@ -5,9 +5,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/fenilsonani/cleanup-cache/internal/config"
-	"github.com/fenilsonani/cleanup-cache/internal/progress"
-	"github.com/fenilsonani/cleanup-cache/internal/scanner"
+	"github.com/fenilsonani/system-cleanup/internal/config"
+	"github.com/fenilsonani/system-cleanup/internal/progress"
+	"github.com/fenilsonani/system-cleanup/internal/scanner"
 )
 
 // CleanResult represents the result of a clean operation
@@ -206,71 +206,6 @@ func (c *Cleaner) Clean(scanResult *scanner.ScanResult) (cleanResult *CleanResul
 
 	// Report completion
 	c.reportCleanProgress(progress.PhaseComplete, "", len(result.DeletedFiles), totalFiles, result.DeletedSize, totalSize, result.UsedSudo, startTime)
-
-	return result, nil
-}
-
-// CleanStreaming performs cleanup on streaming batches for memory efficiency
-// This prevents OOM issues when cleaning millions of files
-func (c *Cleaner) CleanStreaming(batchChan <-chan *scanner.ScanBatch, progressCallback func(deleted int, size int64)) (*CleanResult, error) {
-	result := &CleanResult{
-		DeletedFiles:  []string{},
-		SkippedFiles:  []string{},
-		SkippedReason: make(map[string]string),
-		Errors:        []*DeletionError{},
-		DryRun:        c.config.DryRun,
-	}
-
-	// SECURITY: Ensure sudo password is ALWAYS cleared, even on panic
-	sudoWasUsed := false
-	defer func() {
-		if sudoWasUsed {
-			c.sudoManager.Clear()
-		}
-	}()
-
-	// Process batches as they arrive
-	for batch := range batchChan {
-		if batch.Error != nil {
-			// Log error but continue processing
-			continue
-		}
-
-		// Create a mini scan result for this batch
-		batchScanResult := &scanner.ScanResult{
-			Files:      batch.Files,
-			TotalSize:  batch.BatchSize,
-			TotalCount: len(batch.Files),
-		}
-
-		// Clean this batch
-		batchResult, err := c.Clean(batchScanResult)
-		if err != nil {
-			return result, err
-		}
-
-		// Merge results
-		result.DeletedFiles = append(result.DeletedFiles, batchResult.DeletedFiles...)
-		result.DeletedSize += batchResult.DeletedSize
-		result.SkippedFiles = append(result.SkippedFiles, batchResult.SkippedFiles...)
-		for k, v := range batchResult.SkippedReason {
-			result.SkippedReason[k] = v
-		}
-		result.Errors = append(result.Errors, batchResult.Errors...)
-		result.UsedSudo = result.UsedSudo || batchResult.UsedSudo
-		result.SudoSucceeded += batchResult.SudoSucceeded
-		result.SudoFailed += batchResult.SudoFailed
-
-		// Report progress
-		if progressCallback != nil {
-			progressCallback(len(result.DeletedFiles), result.DeletedSize)
-		}
-
-		// Track if sudo was used
-		if batchResult.UsedSudo {
-			sudoWasUsed = true
-		}
-	}
 
 	return result, nil
 }

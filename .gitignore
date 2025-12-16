@@ -26,3 +26,4 @@ coverage.html
 # Temporary files
 tmp/
 temp/
+bin/

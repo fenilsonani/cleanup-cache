@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fenilsonani/cleanup-cache/internal/security"
+	"github.com/fenilsonani/system-cleanup/internal/security"
 	"golang.org/x/term"
 )
 

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fenilsonani/cleanup-cache/internal/config"
+	"github.com/fenilsonani/system-cleanup/internal/config"
 	"github.com/robfig/cron/v3"
 )
 
