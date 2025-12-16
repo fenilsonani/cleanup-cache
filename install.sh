@@ -327,7 +327,18 @@ download_and_install() {
     if ! curl -sSL "$DOWNLOAD_URL" -o tidyup.tar.gz; then
         print_warning "Failed to download prebuilt binary."
         print_info "Falling back to building from source..."
-        BUILD_FROM_SOURCE=1
+        cd - > /dev/null
+        rm -rf "$TMP_DIR"
+        build_from_source
+        return
+    fi
+
+    # Check if download is a valid tar.gz (not an error page)
+    if ! tar -tzf tidyup.tar.gz > /dev/null 2>&1; then
+        print_warning "Downloaded file is not a valid archive."
+        print_info "Falling back to building from source..."
+        cd - > /dev/null
+        rm -rf "$TMP_DIR"
         build_from_source
         return
     fi
@@ -336,17 +347,22 @@ download_and_install() {
     print_info "Extracting binary..."
     tar -xzf tidyup.tar.gz
 
-    # Debug: Show what was extracted
-    print_info "Extracted files:"
-    ls -la
+    # Check if the expected binary exists (try multiple naming conventions)
+    EXTRACTED_BINARY=""
+    for name in "tidyup-${OS}-${ARCH}" "tidyup" "${BINARY_NAME}"; do
+        if [ -f "$name" ]; then
+            EXTRACTED_BINARY="$name"
+            break
+        fi
+    done
 
-    # Check if the expected binary exists
-    EXTRACTED_BINARY="tidyup-${OS}-${ARCH}"
-    if [ ! -f "$EXTRACTED_BINARY" ]; then
-        print_error "Expected binary not found: $EXTRACTED_BINARY"
-        print_error "Contents of directory:"
-        ls -la
-        exit 1
+    if [ -z "$EXTRACTED_BINARY" ]; then
+        print_warning "Binary not found in archive."
+        print_info "Falling back to building from source..."
+        cd - > /dev/null
+        rm -rf "$TMP_DIR"
+        build_from_source
+        return
     fi
 
     # Rename extracted binary to standard name
@@ -705,10 +721,10 @@ main() {
                     print_info "No changes made."
                     exit 0
                 fi
-            else
-                print_info "No changes made."
-                exit 0
             fi
+            # Installed version is newer than release, build from source
+            print_info "Building from source (installed version is newer than release)..."
+            BUILD_FROM_SOURCE=1
         else
             print_info "New version available: $VERSION"
         fi
