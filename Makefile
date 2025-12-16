@@ -114,9 +114,11 @@ release: ## Create a release (requires goreleaser)
 dist: build-all ## Create distribution archives
 	@echo "Creating distribution archives..."
 	@mkdir -p dist
+	@# Linux amd64 - binary is already named tidyup
 	@cd $(BUILD_DIR)/linux && tar -czvf ../../dist/$(BINARY_NAME)-linux-amd64.tar.gz $(BINARY_NAME)
-	@cd $(BUILD_DIR)/darwin && tar -czvf ../../dist/$(BINARY_NAME)-darwin-amd64.tar.gz $(BINARY_NAME)-amd64
-	@cd $(BUILD_DIR)/darwin && tar -czvf ../../dist/$(BINARY_NAME)-darwin-arm64.tar.gz $(BINARY_NAME)-arm64
+	@# macOS - rename binaries to 'tidyup' before archiving
+	@cd $(BUILD_DIR)/darwin && cp $(BINARY_NAME)-amd64 $(BINARY_NAME) && tar -czvf ../../dist/$(BINARY_NAME)-darwin-amd64.tar.gz $(BINARY_NAME) && rm $(BINARY_NAME)
+	@cd $(BUILD_DIR)/darwin && cp $(BINARY_NAME)-arm64 $(BINARY_NAME) && tar -czvf ../../dist/$(BINARY_NAME)-darwin-arm64.tar.gz $(BINARY_NAME) && rm $(BINARY_NAME)
 	@echo "Archives created in dist/"
 	@ls -la dist/*.tar.gz
 
