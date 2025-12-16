@@ -109,3 +109,38 @@ release-snapshot: ## Create a snapshot release (requires goreleaser)
 
 release: ## Create a release (requires goreleaser)
 	goreleaser release --clean
+
+# Distribution targets
+dist: build-all ## Create distribution archives
+	@echo "Creating distribution archives..."
+	@mkdir -p dist
+	@cd $(BUILD_DIR)/linux && tar -czvf ../../dist/$(BINARY_NAME)-linux-amd64.tar.gz $(BINARY_NAME)
+	@cd $(BUILD_DIR)/darwin && tar -czvf ../../dist/$(BINARY_NAME)-darwin-amd64.tar.gz $(BINARY_NAME)-amd64
+	@cd $(BUILD_DIR)/darwin && tar -czvf ../../dist/$(BINARY_NAME)-darwin-arm64.tar.gz $(BINARY_NAME)-arm64
+	@echo "Archives created in dist/"
+	@ls -la dist/*.tar.gz
+
+checksums: dist ## Generate SHA256 checksums for release files
+	@echo "Generating SHA256 checksums..."
+	@cd dist && \
+		if command -v sha256sum >/dev/null 2>&1; then \
+			sha256sum *.tar.gz > checksums.txt; \
+		else \
+			shasum -a 256 *.tar.gz > checksums.txt; \
+		fi
+	@echo ""
+	@echo "Checksums:"
+	@cat dist/checksums.txt
+	@echo ""
+	@echo "Checksums saved to dist/checksums.txt"
+
+release-dist: checksums ## Create distribution with checksums (for GitHub releases)
+	@echo ""
+	@echo "Release files ready in dist/:"
+	@ls -la dist/
+	@echo ""
+	@echo "Upload these files to GitHub release:"
+	@echo "  - dist/$(BINARY_NAME)-linux-amd64.tar.gz"
+	@echo "  - dist/$(BINARY_NAME)-darwin-amd64.tar.gz"
+	@echo "  - dist/$(BINARY_NAME)-darwin-arm64.tar.gz"
+	@echo "  - dist/checksums.txt"
