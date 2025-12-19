@@ -1,0 +1,90 @@
+# GoReleaser configuration for TidyUp
+# Docs: https://goreleaser.com
+
+version: 2
+
+project_name: tidyup
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: tidyup
+    main: ./cmd/tidyup
+    binary: tidyup
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.Version={{.Version}}
+      - -X main.GitCommit={{.ShortCommit}}
+      - -X main.BuildTime={{.Date}}
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: fenilsonani
+    name: cleanup-cache
+  draft: false
+  prerelease: auto
+  name_template: "TidyUp v{{.Version}}"
+
+brews:
+  - name: tidyup
+    repository:
+      owner: fenilsonani
+      name: homebrew-tidyup
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    folder: Formula
+    homepage: https://github.com/fenilsonani/cleanup-cache
+    description: "Fast system cleanup tool with intelligent caching"
+    license: MIT
+    install: |
+      bin.install "tidyup"
+    test: |
+      system "#{bin}/tidyup", "--version"
+
+# Scoop bucket for Windows users (optional - can enable later)
+# scoops:
+#   - name: tidyup
+#     repository:
+#       owner: fenilsonani
+#       name: scoop-bucket
+#     homepage: https://github.com/fenilsonani/cleanup-cache
+#     description: "Fast system cleanup tool"
+#     license: MIT
