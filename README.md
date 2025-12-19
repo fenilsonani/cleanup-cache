@@ -1,4 +1,4 @@
-# CleanupCache 🗑️
+# TidyUp 🗑️
 
 A powerful, safe, and intelligent CLI tool to clean up your Mac or Linux system by removing unnecessary files, caches, logs, and more.
 
@@ -17,89 +17,97 @@ A powerful, safe, and intelligent CLI tool to clean up your Mac or Linux system 
 
 ## 📦 Installation
 
-### Quick Install (Recommended)
+### Homebrew (Recommended for macOS/Linux)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/fenilsonani/cleanup-cache/main/install.sh | bash
+brew install fenilsonani/tidyup/tidyup
 ```
 
-### Manual Installation
+Or tap first:
+```bash
+brew tap fenilsonani/tidyup
+brew install tidyup
+```
 
-#### From Source (requires Go 1.21+)
+### Go Install (requires Go 1.21+)
 
 ```bash
-# Clone the repository
+go install github.com/fenilsonani/cleanup-cache/cmd/tidyup@latest
+```
+
+### Download Binary
+
+Download the latest release from [GitHub Releases](https://github.com/fenilsonani/cleanup-cache/releases/latest).
+
+### From Source
+
+```bash
 git clone https://github.com/fenilsonani/cleanup-cache.git
 cd cleanup-cache
-
-# Build and install
-go build -o cleanup ./cmd/cleanup
-sudo mv cleanup /usr/local/bin/
-
-# Create config directory
-mkdir -p ~/.config/cleanup-cache
+make build
+sudo mv bin/tidyup /usr/local/bin/
 ```
 
 ## 🚀 Quick Start
 
 ### 1. Scan your system
 ```bash
-cleanup scan
+tidyup scan
 ```
 
 ### 2. Clean with preview (dry-run)
 ```bash
-cleanup clean --dry-run
+tidyup clean --dry-run
 ```
 
 ### 3. Actually clean files
 ```bash
-cleanup clean
+tidyup clean
 ```
 
 ## 📖 Usage
 
 ### Commands
 
-#### `cleanup scan`
+#### `tidyup scan`
 Scan the system and report what can be cleaned without making any changes.
 
 ```bash
-cleanup scan
-cleanup scan --output table
-cleanup scan --output json
+tidyup scan
+tidyup scan --output table
+tidyup scan --output json
 ```
 
-#### `cleanup clean`
+#### `tidyup clean`
 Clean the system based on your configuration.
 
 ```bash
-cleanup clean                    # Interactive with confirmation
-cleanup clean --dry-run         # Preview what will be deleted
-cleanup clean --force           # Skip confirmation prompts
-cleanup clean --category cache  # Clean only specific category
+tidyup clean                    # Interactive with confirmation
+tidyup clean --dry-run         # Preview what will be deleted
+tidyup clean --force           # Skip confirmation prompts
+tidyup clean --category cache  # Clean only specific category
 ```
 
-#### `cleanup report`
+#### `tidyup report`
 Generate a detailed report of cleanup opportunities.
 
 ```bash
-cleanup report                           # Show summary
-cleanup report --output json             # JSON format
-cleanup report --output yaml             # YAML format
-cleanup report --file report.json        # Save to file
+tidyup report                           # Show summary
+tidyup report --output json             # JSON format
+tidyup report --output yaml             # YAML format
+tidyup report --file report.json        # Save to file
 ```
 
-#### `cleanup config`
+#### `tidyup config`
 Display current configuration and config file location.
 
 ```bash
-cleanup config
+tidyup config
 ```
 
 ### Categories
 
-CleanupCache can clean the following types of files:
+TidyUp can clean the following types of files:
 
 - **cache** - Application caches and temporary data
 - **temp** - Temporary files and directories
@@ -237,7 +245,7 @@ Set up automatic weekly cleaning:
 crontab -e
 
 # Add weekly cleanup (every Sunday at 2 AM)
-0 2 * * 0 /usr/local/bin/cleanup clean --force
+0 2 * * 0 /usr/local/bin/tidyup clean --force
 ```
 
 ### Script Usage
@@ -250,7 +258,7 @@ echo "Starting backup..."
 ./backup.sh
 
 # Clean with verbose output
-cleanup clean --force --verbose
+tidyup clean --force --verbose
 
 echo "Cleanup complete!"
 ```
@@ -261,10 +269,10 @@ Clean Docker resources safely - only stops containers, removes unused images, an
 
 ```bash
 # Preview Docker cleanup
-cleanup clean --category docker --dry-run
+tidyup clean --category docker --dry-run
 
 # Clean Docker resources
-cleanup clean --category docker --force
+tidyup clean --category docker --force
 ```
 
 **Docker Safety Features:**
@@ -317,28 +325,28 @@ cleanup-daemon --foreground
 ### Clean Specific Categories
 ```bash
 # Clean only cache and temp files
-cleanup clean --category cache --force
+tidyup clean --category cache --force
 
 # Clean multiple categories
-cleanup clean --category cache --category logs --force
+tidyup clean --category cache --category logs --force
 ```
 
 ### Generate Reports for Analysis
 ```bash
 # Generate JSON report for analysis
-cleanup report --output json --file analysis.json
+tidyup report --output json --file analysis.json
 
 # Use with other tools
-cleanup report --output json | jq '.total_size'
+tidyup report --output json | jq '.total_size'
 ```
 
 ### Configuration Management
 ```bash
 # Show current configuration
-cleanup config
+tidyup config
 
 # Use custom config file
-cleanup --config ~/custom-config.yaml clean
+tidyup --config ~/custom-config.yaml clean
 ```
 
 ## 🐛 Troubleshooting
@@ -347,7 +355,7 @@ cleanup --config ~/custom-config.yaml clean
 ```bash
 # The tool will prompt for sudo if needed
 # Or run with sudo explicitly
-sudo cleanup clean
+sudo tidyup clean
 ```
 
 ### Files Not Deleted
@@ -364,7 +372,7 @@ Files might be created/deleted between scan and actual cleaning. Always run with
 
 ### Before and After
 ```bash
-$ cleanup scan
+$ tidyup scan
 📊 System Scan Results
 
 📂 Found 2,543 files (4.2 GB)
@@ -373,7 +381,7 @@ $ cleanup scan
 ├── 📝 Logs: 239 files (250 MB)
 └── 🗑️  Trash: 0 files (0 B)
 
-$ cleanup clean --force
+$ tidyup clean --force
 Scanning system...
 📊 Cleanup Complete!
 ✅ Successfully deleted: 2,543 files (4.2 GB)
@@ -382,13 +390,13 @@ Scanning system...
 ### Selective Cleaning
 ```bash
 # Only clean caches, leave everything else
-$ cleanup clean --category cache --dry-run
+$ tidyup clean --category cache --dry-run
 📊 System Scan Results
 
 📂 Found 1,892 files (3.1 GB)
 ├── 📦 Cache: 1,892 files (3.1 GB)
 
-$ cleanup clean --category cache --force
+$ tidyup clean --category cache --force
 ✅ Successfully deleted: 1,892 files (3.1 GB)
 ```
 
@@ -418,7 +426,7 @@ If you encounter any issues:
 
 1. Check the [Issues](https://github.com/fenilsonani/cleanup-cache/issues) page
 2. Create a new issue with details about your system
-3. Include the output of `cleanup --version`
+3. Include the output of `tidyup --version`
 
 ---
 
