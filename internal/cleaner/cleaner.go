@@ -272,7 +272,7 @@ func (c *Cleaner) deleteFileNormal(file scanner.FileInfo, result *CleanResult) *
 		return CategorizeError(file.Path, err)
 	}
 
-	// SECURITY: Ensure it's still a regular file, not a symlink
+	// SECURITY: Ensure it's not a symlink (prevents following symlinks to delete unintended targets)
 	if info.Mode()&os.ModeSymlink != 0 {
 		result.SkippedFiles = append(result.SkippedFiles, file.Path)
 		result.SkippedReason[file.Path] = "File changed to symlink (security check)"
@@ -293,9 +293,15 @@ func (c *Cleaner) deleteFileNormal(file scanner.FileInfo, result *CleanResult) *
 	// Add to manifest before deleting
 	c.manifest.Add(file.Path, file.Size, file.Category)
 
-	// Attempt deletion
-	if err := os.Remove(file.Path); err != nil {
-		delErr := CategorizeError(file.Path, err)
+	// Attempt deletion - use RemoveAll for directories (e.g., node_modules, venv)
+	var deleteErr error
+	if info.IsDir() {
+		deleteErr = os.RemoveAll(file.Path)
+	} else {
+		deleteErr = os.Remove(file.Path)
+	}
+	if deleteErr != nil {
+		delErr := CategorizeError(file.Path, deleteErr)
 		result.SkippedFiles = append(result.SkippedFiles, file.Path)
 		result.SkippedReason[file.Path] = delErr.UserMessage()
 		return delErr

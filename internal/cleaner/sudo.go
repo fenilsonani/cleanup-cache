@@ -307,16 +307,31 @@ func (sm *SudoManager) DeleteFileWithResult(path string) *SudoDeletionResult {
 	return result
 }
 
-// deleteWithSudo deletes using standard sudo rm
+// deleteWithSudo deletes using standard sudo rm (handles both files and directories)
 func (sm *SudoManager) deleteWithSudo(path string) error {
 	if err := sm.ensureAuthenticated(); err != nil {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Check if path is a directory to use appropriate flags
+	info, err := os.Lstat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // Already deleted
+		}
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "sudo", "-S", "rm", "-f", "--", path)
+	var cmd *exec.Cmd
+	if info.IsDir() {
+		// Use rm -rf for directories
+		cmd = exec.CommandContext(ctx, "sudo", "-S", "rm", "-rf", "--", path)
+	} else {
+		cmd = exec.CommandContext(ctx, "sudo", "-S", "rm", "-f", "--", path)
+	}
 
 	sm.mu.RLock()
 	passwordInput := append([]byte(nil), sm.password...)
@@ -491,11 +506,11 @@ func (sm *SudoManager) deleteBatch(paths []string) (succeeded []string, failed m
 	}
 
 	// Build sudo rm command with all valid paths
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	// Use xargs approach for very large batches to avoid arg limit
-	args := []string{"-S", "rm", "-f", "--"}
+	// Use -rf to handle both files and directories (node_modules, venv, etc.)
+	args := []string{"-S", "rm", "-rf", "--"}
 	args = append(args, validPaths...)
 
 	cmd := exec.CommandContext(ctx, "sudo", args...)
