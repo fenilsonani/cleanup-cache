@@ -363,15 +363,14 @@ func IsSafeToDelete(path string) error {
 	}
 
 	// Verify file exists and get info
-	info, err := os.Lstat(path)
+	_, err := os.Lstat(path)
 	if err != nil {
 		return err
 	}
 
-	// Extra safety: don't delete directories through this function
-	if info.IsDir() {
-		return fmt.Errorf("use DeleteDirectory for directory removal")
-	}
+	// Note: Directories are allowed here because the cleaner handles them
+	// appropriately with os.RemoveAll() for dev artifacts like node_modules,
+	// venv, and build directories.
 
 	return nil
 }

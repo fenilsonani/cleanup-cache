@@ -454,11 +454,14 @@ func (hs *HyperScanner) findDevArtifactsInDir(dir string) {
 		patterns = append(patterns, "-name", "node_modules", "-type", "d", "-o")
 	}
 	if hs.config.Categories.VirtualEnvs {
-		patterns = append(patterns, "-name", "venv", "-type", "d", "-o", "-name", ".venv", "-type", "d", "-o")
+		patterns = append(patterns, "-name", "venv", "-type", "d", "-o", "-name", ".venv", "-type", "d", "-o",
+			"-name", "virtualenv", "-type", "d", "-o")
 	}
 	if hs.config.Categories.BuildArtifacts {
 		patterns = append(patterns, "-name", "dist", "-type", "d", "-o", "-name", "build", "-type", "d", "-o",
-			"-name", ".next", "-type", "d", "-o", "-name", "__pycache__", "-type", "d", "-o")
+			"-name", ".next", "-type", "d", "-o", "-name", "__pycache__", "-type", "d", "-o",
+			"-name", "target", "-type", "d", "-o", "-name", ".gradle", "-type", "d", "-o",
+			"-name", "out", "-type", "d", "-o")
 	}
 
 	if len(patterns) == 0 {
@@ -529,7 +532,7 @@ func (hs *HyperScanner) findDevArtifactsOfType(dir, artifactType string) {
 		names = []string{"venv", ".venv", "virtualenv"}
 		category = "virtual_envs"
 	case "build":
-		names = []string{"dist", "build", ".next", "__pycache__", "target"}
+		names = []string{"dist", "build", ".next", "__pycache__", "target", ".gradle", "out"}
 		category = "build_artifacts"
 	}
 

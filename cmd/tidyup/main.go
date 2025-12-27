@@ -431,9 +431,12 @@ var largeCmd = &cobra.Command{
 		// Enable large files
 		cfg.Categories.LargeFiles = true
 
-		// Override min size if specified
+		// Override config with flags
 		if cmd.Flags().Changed("min") {
 			cfg.LargeFiles.MinSize = minSize
+		}
+		if cmd.Flags().Changed("dry-run") {
+			cfg.DryRun = dryRun
 		}
 
 		platformInfo, err := platform.GetInfo()
@@ -461,6 +464,13 @@ var largeCmd = &cobra.Command{
 		}
 
 		fmt.Printf("\nTotal: %d files, %s\n", result.TotalCount, formatBytes(result.TotalSize))
+
+		// If --clean flag is set, proceed with cleanup
+		if cleanAction {
+			return cleanFiles(cfg, result, "large files")
+		}
+
+		fmt.Println("\nRun 'tidyup large --clean' to remove these files")
 		return nil
 	},
 }
@@ -490,9 +500,12 @@ Scans Downloads, Documents, and Desktop by default.`,
 		// Enable old files
 		cfg.Categories.OldFiles = true
 
-		// Override min age if specified
+		// Override config with flags
 		if cmd.Flags().Changed("days") {
 			cfg.OldFiles.MinAgeDays = minAgeDays
+		}
+		if cmd.Flags().Changed("dry-run") {
+			cfg.DryRun = dryRun
 		}
 
 		platformInfo, err := platform.GetInfo()
@@ -520,12 +533,24 @@ Scans Downloads, Documents, and Desktop by default.`,
 		}
 
 		fmt.Printf("\nTotal: %d files, %s\n", result.TotalCount, formatBytes(result.TotalSize))
+
+		// If --clean flag is set, proceed with cleanup
+		if cleanAction {
+			return cleanFiles(cfg, result, "old files")
+		}
+
+		fmt.Println("\nRun 'tidyup old --clean' to remove these files")
 		return nil
 	},
 }
 
 // cleanDevArtifacts handles cleanup of development artifacts
 func cleanDevArtifacts(cfg *config.Config, scanResult *scanner.ScanResult) error {
+	return cleanFiles(cfg, scanResult, "development artifacts")
+}
+
+// cleanFiles is a generic function to clean files from any category
+func cleanFiles(cfg *config.Config, scanResult *scanner.ScanResult, description string) error {
 	if !force && !cfg.DryRun {
 		fmt.Print("\nProceed with cleanup? (y/N): ")
 		var response string
@@ -541,7 +566,7 @@ func cleanDevArtifacts(cfg *config.Config, scanResult *scanner.ScanResult) error
 	if cfg.DryRun {
 		fmt.Println("\n[DRY RUN MODE] No files will be deleted.")
 	} else {
-		fmt.Println("\nCleaning development artifacts...")
+		fmt.Printf("\nCleaning %s...\n", description)
 	}
 
 	cleanResult, err := clnr.Clean(scanResult)
@@ -588,9 +613,15 @@ func init() {
 
 	// Large command flags
 	largeCmd.Flags().StringVar(&minSize, "min", "500MB", "minimum file size (e.g., 500MB, 1GB)")
+	largeCmd.Flags().BoolVar(&cleanAction, "clean", false, "clean the found files")
+	largeCmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be deleted without actually deleting")
+	largeCmd.Flags().BoolVar(&force, "force", false, "skip confirmation prompts")
 
 	// Old command flags
 	oldCmd.Flags().IntVar(&minAgeDays, "days", 180, "minimum age in days (default 180)")
+	oldCmd.Flags().BoolVar(&cleanAction, "clean", false, "clean the found files")
+	oldCmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be deleted without actually deleting")
+	oldCmd.Flags().BoolVar(&force, "force", false, "skip confirmation prompts")
 
 	// Add commands
 	rootCmd.AddCommand(scanCmd)
