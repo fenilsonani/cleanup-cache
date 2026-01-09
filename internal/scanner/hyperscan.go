@@ -859,6 +859,11 @@ func (hs *HyperScanner) addResult(path, category string, size int64, modTime tim
 
 // addArtifactResult adds a dev artifact directory result with caching
 func (hs *HyperScanner) addArtifactResult(path, category string) {
+	// First verify the path exists
+	if _, err := os.Stat(path); err != nil {
+		return // Skip non-existent paths
+	}
+
 	cacheKey := fmt.Sprintf("artifact:%s", path)
 
 	// Check cache first (read lock)

@@ -1436,13 +1436,9 @@ func TestAddArtifactResultNonExistent(t *testing.T) {
 	hs := NewHyperScanner(cfg, pInfo)
 	hs.addArtifactResult("/nonexistent/path", "node_modules")
 
-	// The function adds a result even for non-existent paths (with size 0)
-	// This is because it runs du command and still adds the entry
-	if len(hs.results) != 1 {
-		t.Errorf("expected 1 result (even for nonexistent path), got %d", len(hs.results))
-	}
-	if len(hs.results) > 0 && hs.results[0].Size != 0 {
-		t.Errorf("expected size 0 for nonexistent path, got %d", hs.results[0].Size)
+	// Non-existent paths should be skipped - no result added
+	if len(hs.results) != 0 {
+		t.Errorf("expected 0 results for nonexistent path, got %d", len(hs.results))
 	}
 }
 
