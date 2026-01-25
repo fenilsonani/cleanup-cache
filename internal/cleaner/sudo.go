@@ -118,7 +118,7 @@ func (sm *SudoManager) PromptForPassword() error {
 		return nil
 	}
 
-	fmt.Print("\n🔐 Some files require elevated permissions.\n")
+	fmt.Print("\n Some files require elevated permissions.\n")
 	fmt.Print("Please enter your password (or press Ctrl+C to skip): ")
 
 	// Read password without echoing

@@ -20,18 +20,20 @@ var (
 )
 
 var (
-	configPath  string
-	verbose     bool
-	dryRun      bool
-	force       bool
-	category    string
-	outputFmt   string
-	outputFile  string
-	minSize     string
-	minAgeDays  int
-	cleanAction bool
-	detailed    bool
-	showLive    bool
+	configPath      string
+	verbose         bool
+	dryRun          bool
+	force           bool
+	category        string
+	outputFmt       string
+	outputFile      string
+	minSize         string
+	minAgeDays      int
+	cleanAction     bool
+	detailed        bool
+	showLive        bool
+	appToUninstall  string
+	listApps        bool
 )
 
 func main() {
@@ -73,7 +75,7 @@ Use --live (-l) to see real-time scanning progress.`,
 		}
 
 		// Use HyperScanner - blazingly fast with caching & Spotlight
-		fmt.Println("⚡ Scanning...")
+		fmt.Println(" Scanning...")
 		hyperScnr := scanner.NewHyperScanner(cfg, platformInfo)
 
 		// Setup live progress if enabled
@@ -161,10 +163,10 @@ var cleanCmd = &cobra.Command{
 		var scanResult *scanner.ScanResult
 
 		if category != "" {
-			fmt.Printf("⚡ Scanning category: %s...\n", category)
+			fmt.Printf(" Scanning category: %s...\n", category)
 			scanResult = hyperScnr.ScanCategory(category)
 		} else {
-			fmt.Println("⚡ Scanning...")
+			fmt.Println(" Scanning...")
 			var scanErr error
 			scanResult, scanErr = hyperScnr.ScanAll()
 			if scanErr != nil {
@@ -181,7 +183,7 @@ var cleanCmd = &cobra.Command{
 
 		// Check if any files found
 		if scanResult.TotalCount == 0 {
-			fmt.Println("\n✨ No files found for cleanup. Your system is already clean!")
+			fmt.Println("\n No files found for cleanup. Your system is already clean!")
 			return nil
 		}
 
@@ -217,14 +219,14 @@ var cleanCmd = &cobra.Command{
 			permReport := clnr.GetPermissionReport(scanResult)
 			if len(permReport.RequiresSudo) > 0 {
 				fmt.Printf("\n📋 Permission Analysis:\n")
-				fmt.Printf("   ✅ Normal files: %d (%s)\n",
+				fmt.Printf("    Normal files: %d (%s)\n",
 					len(permReport.NormalFiles),
 					formatBytes(permReport.TotalNormalSize))
-				fmt.Printf("   🔐 Requires sudo: %d (%s)\n",
+				fmt.Printf("    Requires sudo: %d (%s)\n",
 					len(permReport.RequiresSudo),
 					formatBytes(permReport.TotalSudoSize))
 				if len(permReport.InaccessibleFiles) > 0 {
-					fmt.Printf("   ⚠️  Inaccessible: %d files\n", len(permReport.InaccessibleFiles))
+					fmt.Printf("     Inaccessible: %d files\n", len(permReport.InaccessibleFiles))
 				}
 			}
 		} else {
@@ -238,19 +240,19 @@ var cleanCmd = &cobra.Command{
 		}
 
 		// Show results
-		fmt.Printf("\n📊 Cleanup Complete!\n")
-		fmt.Printf("✅ Successfully deleted: %d files (%s)\n",
+		fmt.Printf("\n Cleanup Complete!\n")
+		fmt.Printf(" Successfully deleted: %d files (%s)\n",
 			len(cleanResult.DeletedFiles),
 			formatBytes(cleanResult.DeletedSize))
 
 		if cleanResult.UsedSudo {
-			fmt.Printf("🔐 Used elevated permissions: %d succeeded, %d failed\n",
+			fmt.Printf(" Used elevated permissions: %d succeeded, %d failed\n",
 				cleanResult.SudoSucceeded,
 				cleanResult.SudoFailed)
 		}
 
 		if len(cleanResult.SkippedFiles) > 0 {
-			fmt.Printf("\n⚠️  Skipped: %d files\n", len(cleanResult.SkippedFiles))
+			fmt.Printf("\n  Skipped: %d files\n", len(cleanResult.SkippedFiles))
 		}
 
 		if len(cleanResult.Errors) > 0 {
@@ -279,7 +281,7 @@ var reportCmd = &cobra.Command{
 		}
 
 		// Use HyperScanner
-		fmt.Println("⚡ Scanning...")
+		fmt.Println(" Scanning...")
 		hyperScnr := scanner.NewHyperScanner(cfg, platformInfo)
 
 		result, err := hyperScnr.ScanAll()
@@ -376,7 +378,7 @@ and build directories (.next, dist, target, __pycache__, etc.)`,
 			return fmt.Errorf("failed to get platform info: %w", err)
 		}
 
-		fmt.Println("⚡ Scanning for development artifacts...")
+		fmt.Println(" Scanning for development artifacts...")
 		hyperScnr := scanner.NewHyperScanner(cfg, platformInfo)
 
 		result, err := hyperScnr.ScanAll()
@@ -449,7 +451,7 @@ var largeCmd = &cobra.Command{
 			return fmt.Errorf("failed to get platform info: %w", err)
 		}
 
-		fmt.Printf("⚡ Scanning for files larger than %s...\n", cfg.LargeFiles.MinSize)
+		fmt.Printf(" Scanning for files larger than %s...\n", cfg.LargeFiles.MinSize)
 		hyperScnr := scanner.NewHyperScanner(cfg, platformInfo)
 
 		result, err := hyperScnr.ScanAll()
@@ -518,7 +520,7 @@ Scans Downloads, Documents, and Desktop by default.`,
 			return fmt.Errorf("failed to get platform info: %w", err)
 		}
 
-		fmt.Printf("⚡ Scanning for files not accessed in %d days...\n", cfg.OldFiles.MinAgeDays)
+		fmt.Printf(" Scanning for files not accessed in %d days...\n", cfg.OldFiles.MinAgeDays)
 		hyperScnr := scanner.NewHyperScanner(cfg, platformInfo)
 
 		result, err := hyperScnr.ScanAll()
@@ -596,6 +598,45 @@ func cleanFiles(cfg *config.Config, scanResult *scanner.ScanResult, description 
 	return nil
 }
 
+var uninstallCmd = &cobra.Command{
+	Use:   "uninstall",
+	Short: "Uninstall apps and remove all related data",
+	Long: `Find installed applications and remove the app plus all related data,
+including settings, caches, databases, and user data.
+
+Usage:
+  tidyup uninstall                    # Interactive: list and select apps
+  tidyup uninstall --app "AppName"   # Uninstall specific app
+  tidyup uninstall --list            # Show all apps with data sizes
+  tidyup uninstall --app "AppName" --force  # Force delete without confirmation
+`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := loadConfig()
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		appManager := NewAppManager(cfg)
+
+		// Get flags
+		listMode, _ := cmd.Flags().GetBool("list")
+		targetApp, _ := cmd.Flags().GetString("app")
+
+		// List mode - just show apps and exit
+		if listMode {
+			return appManager.ListApps()
+		}
+
+		// Specific app mode
+		if targetApp != "" {
+			return appManager.UninstallApp(targetApp, force)
+		}
+
+		// Interactive mode
+		return appManager.InteractiveUninstall()
+	},
+}
+
 func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "config file path")
@@ -641,6 +682,12 @@ func init() {
 	rootCmd.AddCommand(devCmd)
 	rootCmd.AddCommand(largeCmd)
 	rootCmd.AddCommand(oldCmd)
+	rootCmd.AddCommand(uninstallCmd)
+
+	// Uninstall command flags
+	uninstallCmd.Flags().StringVar(&appToUninstall, "app", "", "specific app to uninstall")
+	uninstallCmd.Flags().BoolVar(&listApps, "list", false, "list all apps and exit")
+	uninstallCmd.Flags().BoolVar(&force, "force", false, "skip confirmation prompts")
 }
 
 func loadConfig() (*config.Config, error) {

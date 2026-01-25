@@ -244,7 +244,7 @@ func categoryName(cat string) string {
 		"virtual_envs":    "🐍 Virtual Environments",
 		"build_artifacts": "🔨 Build Artifacts",
 		"cache":           "💾 Cache Files",
-		"temp":            "🗑️  Temporary Files",
+		"temp":            "  Temporary Files",
 		"logs":            "📜 Log Files",
 		"large_files":     "📀 Large Files",
 		"old_files":       "📅 Old Files",

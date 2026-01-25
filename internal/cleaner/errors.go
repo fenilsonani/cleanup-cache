@@ -58,19 +58,19 @@ func (e *DeletionError) UserMessage() string {
 	switch e.Reason {
 	case ErrorPermissionDenied:
 		if e.NeedsSudo {
-			return fmt.Sprintf("⚠️  Need elevated permissions to delete: %s", e.Path)
+			return fmt.Sprintf("  Need elevated permissions to delete: %s", e.Path)
 		}
-		return fmt.Sprintf("⚠️  Permission denied: %s", e.Path)
+		return fmt.Sprintf("  Permission denied: %s", e.Path)
 	case ErrorFileInUse:
-		return fmt.Sprintf("⚠️  File is being used: %s (close the application and try again)", e.Path)
+		return fmt.Sprintf("  File is being used: %s (close the application and try again)", e.Path)
 	case ErrorFileNotFound:
 		return fmt.Sprintf("ℹ️  Already deleted: %s", e.Path)
 	case ErrorIsDirectory:
-		return fmt.Sprintf("⚠️  Cannot delete directory: %s (use recursive delete)", e.Path)
+		return fmt.Sprintf("  Cannot delete directory: %s (use recursive delete)", e.Path)
 	case ErrorInvalidPath:
-		return fmt.Sprintf("❌ Invalid or unsafe path: %s", e.Path)
+		return fmt.Sprintf(" Invalid or unsafe path: %s", e.Path)
 	default:
-		return fmt.Sprintf("❌ Error deleting %s: %v", e.Path, e.Original)
+		return fmt.Sprintf(" Error deleting %s: %v", e.Path, e.Original)
 	}
 }
 
@@ -150,7 +150,7 @@ func FormatErrorSummary(errors []*DeletionError) string {
 	}
 
 	grouped := GroupErrors(errors)
-	summary := fmt.Sprintf("\n⚠️  Issues encountered:\n")
+	summary := fmt.Sprintf("\n  Issues encountered:\n")
 
 	// Permission denied
 	if perms, ok := grouped[ErrorPermissionDenied]; ok {
