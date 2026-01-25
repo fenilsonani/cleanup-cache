@@ -209,6 +209,15 @@ func (hs *HyperScanner) ScanAll() (*ScanResult, error) {
 		}()
 	}
 
+	// Docker - scan Docker artifacts
+	if hs.config.Categories.Docker {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			hs.scanDockerCategory()
+		}()
+	}
+
 	wg.Wait()
 
 	// Save cache for next run
@@ -244,6 +253,8 @@ func (hs *HyperScanner) ScanCategory(category string) *ScanResult {
 		hs.scanLargeFilesSpotlight()
 	case "old_files":
 		hs.scanOldFilesSpotlight()
+	case "docker":
+		hs.scanDockerCategory()
 	}
 
 	return &ScanResult{
@@ -270,6 +281,91 @@ func (hs *HyperScanner) scanTempCategory() {
 func (hs *HyperScanner) scanLogsCategory() {
 	dirs := hs.platformInfo.LogDirs
 	hs.scanDirsWithCache(dirs, "logs")
+}
+
+// scanDockerCategory scans Docker artifacts and unused containers/images
+func (hs *HyperScanner) scanDockerCategory() {
+	if !hs.config.Docker.Enabled {
+		return
+	}
+
+	home, _ := os.UserHomeDir()
+
+	// Get Docker artifact directories based on platform
+	var dockerDirs []string
+
+	if runtime.GOOS == "darwin" {
+		// macOS Docker Desktop - scan specific subdirectories
+		basePath := filepath.Join(home, "Library/Containers/com.docker.docker/Data")
+		dockerDirs = []string{
+			filepath.Join(basePath, "vms"),
+			filepath.Join(basePath, "log"),
+		}
+	} else if runtime.GOOS == "linux" {
+		// Linux Docker
+		dockerDirs = []string{
+			filepath.Join(home, ".docker"),
+		}
+		// Also try system Docker if not running as root
+		if os.Getuid() != 0 {
+			dockerDirs = append(dockerDirs, "/var/lib/docker")
+		}
+	}
+
+	// Scan Docker artifact directories and get total size
+	for _, dir := range dockerDirs {
+		if info, err := os.Stat(dir); err == nil {
+			// For Docker directories, treat as a single item with the directory size
+			totalSize := hs.getDirSize(dir)
+			if totalSize > 0 {
+				// Add as a single "file" item for deletion
+				hs.addResult(dir, "docker", totalSize, info.ModTime())
+			}
+		}
+	}
+
+	// Try to clean up using Docker CLI if daemon is running
+	if hs.config.Docker.CleanBuildCache {
+		hs.scanDockerCLI()
+	}
+}
+
+// getDirSize recursively calculates directory size
+func (hs *HyperScanner) getDirSize(path string) int64 {
+	var size int64
+	filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() {
+			if info, err := d.Info(); err == nil {
+				size += info.Size()
+			}
+		}
+		return nil
+	})
+	return size
+}
+
+// scanDockerCLI scans Docker artifacts using the Docker CLI
+func (hs *HyperScanner) scanDockerCLI() {
+	// Check if docker command is available
+	_, err := exec.LookPath("docker")
+	if err != nil {
+		return // Docker not installed
+	}
+
+	// Try to get Docker system info - if this fails, daemon isn't running
+	cmd := exec.Command("docker", "system", "df", "--format", "json")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return // Docker daemon not running
+	}
+
+	// Parse docker system df output to estimate cleanup size
+	// For now, just track that we attempted to scan
+	// Actual cleanup will be handled by the cleaner
 }
 
 // scanDirsWithCache scans directories using mtime caching
