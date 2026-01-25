@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -218,6 +219,15 @@ func (hs *HyperScanner) ScanAll() (*ScanResult, error) {
 		}()
 	}
 
+	// App Data - scan application caches and support files
+	if hs.config.Categories.AppData {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			hs.scanAppDataCategory()
+		}()
+	}
+
 	wg.Wait()
 
 	// Save cache for next run
@@ -255,6 +265,8 @@ func (hs *HyperScanner) ScanCategory(category string) *ScanResult {
 		hs.scanOldFilesSpotlight()
 	case "docker":
 		hs.scanDockerCategory()
+	case "app_data":
+		hs.scanAppDataCategory()
 	}
 
 	return &ScanResult{
@@ -366,6 +378,176 @@ func (hs *HyperScanner) scanDockerCLI() {
 	// Parse docker system df output to estimate cleanup size
 	// For now, just track that we attempted to scan
 	// Actual cleanup will be handled by the cleaner
+}
+
+// scanAppDataCategory intelligently scans for large application data that can be cleaned
+func (hs *HyperScanner) scanAppDataCategory() {
+	if !hs.config.AppData.Enabled {
+		return
+	}
+
+	home, _ := os.UserHomeDir()
+
+	// Expand paths
+	var scanDirs []string
+	for _, p := range hs.config.AppData.ScanPaths {
+		expanded := expandPath(p, home)
+		if _, err := os.Stat(expanded); err == nil {
+			scanDirs = append(scanDirs, expanded)
+		}
+	}
+
+	minBytes := hs.parseSize(hs.config.AppData.MinSize)
+
+	// Scan directories for app data
+	for _, scanDir := range scanDirs {
+		entries, err := os.ReadDir(scanDir)
+		if err != nil {
+			continue
+		}
+
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+
+			appName := entry.Name()
+			appPath := filepath.Join(scanDir, appName)
+
+			// RULE 1: Check if matches protected patterns - NEVER touch these
+			if hs.matchesPattern(appName, hs.config.AppData.ProtectedPatterns) {
+				continue
+			}
+
+			// RULE 2: Check if it's a known cache pattern - ALWAYS safe to delete
+			isCacheDir := hs.matchesPattern(appName, hs.config.AppData.CachePatterns)
+
+			// RULE 3: Check directory structure for safety indicators
+			isSafeByStructure := hs.isAppDataSafeToClean(appPath)
+
+			// RULE 4: Check age - only delete if not accessed recently
+			isSafeByAge := hs.isDirectoryOldEnough(appPath, hs.config.AppData.MaxAgeDays)
+
+			// Decision logic:
+			// - If it's a cache pattern, always include it (Rule 2)
+			// - If structure indicates it's safe AND it's old enough, include it (Rule 3 + 4)
+			// - Otherwise skip it
+			if !isCacheDir && (!isSafeByStructure || !isSafeByAge) {
+				continue
+			}
+
+			// Calculate size
+			totalSize := hs.getDirSize(appPath)
+			if totalSize >= minBytes {
+				hs.addResult(appPath, "app_data", totalSize, time.Now())
+			}
+		}
+	}
+}
+
+// matchesPattern checks if a string matches any glob pattern in the list
+func (hs *HyperScanner) matchesPattern(name string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if match, _ := filepath.Match(pattern, name); match {
+			return true
+		}
+	}
+	return false
+}
+
+// isAppDataSafeToClean analyzes directory structure to determine if it's safe to delete
+func (hs *HyperScanner) isAppDataSafeToClean(appPath string) bool {
+	// Scan directory for indicators
+	hasDatabase := false      // .db, .sqlite files suggest important data
+	hasSettings := false      // .plist, config files suggest app settings
+	hasCacheIndicators := 0   // Count cache-like subdirectories
+	hasDataIndicators := 0    // Count data-like subdirectories
+
+	filepath.WalkDir(appPath, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+
+		name := d.Name()
+
+		// Stop walking deep - just check immediate structure
+		rel, _ := filepath.Rel(appPath, path)
+		if strings.Count(rel, string(filepath.Separator)) > 2 {
+			return filepath.SkipDir
+		}
+
+		// Check for important data files
+		if strings.HasSuffix(name, ".plist") || strings.HasSuffix(name, ".db") || strings.HasSuffix(name, ".sqlite") {
+			hasSettings = true
+		}
+
+		// Check for cache indicators
+		if strings.Contains(strings.ToLower(name), "cache") {
+			hasCacheIndicators++
+		}
+
+		// Check for data indicators (these suggest real app data)
+		if strings.Contains(strings.ToLower(name), "data") ||
+			strings.Contains(strings.ToLower(name), "documents") ||
+			strings.Contains(strings.ToLower(name), "database") ||
+			strings.Contains(strings.ToLower(name), "settings") ||
+			strings.Contains(strings.ToLower(name), "preferences") {
+			hasDataIndicators++
+		}
+
+		return nil
+	})
+
+	// Safe if:
+	// - Has no important data files AND more cache indicators than data indicators
+	if !hasDatabase && !hasSettings && hasCacheIndicators > hasDataIndicators {
+		return true
+	}
+
+	// Also safe if only has cache in the name and nothing else
+	if hasCacheIndicators > 0 && hasDataIndicators == 0 && !hasDatabase && !hasSettings {
+		return true
+	}
+
+	return false
+}
+
+// isDirectoryOldEnough checks if directory hasn't been accessed recently
+func (hs *HyperScanner) isDirectoryOldEnough(dirPath string, maxDays int) bool {
+	info, err := os.Stat(dirPath)
+	if err != nil {
+		return false
+	}
+
+	// Check modification time
+	lastAccess := info.ModTime()
+	age := time.Since(lastAccess)
+
+	return age > time.Duration(maxDays)*24*time.Hour
+}
+
+// parseSize converts size string like "500MB", "1GB" to bytes
+func (hs *HyperScanner) parseSize(sizeStr string) int64 {
+	sizeStr = strings.TrimSpace(strings.ToUpper(sizeStr))
+
+	var multiplier int64 = 1
+	if strings.HasSuffix(sizeStr, "GB") {
+		multiplier = 1024 * 1024 * 1024
+		sizeStr = strings.TrimSuffix(sizeStr, "GB")
+	} else if strings.HasSuffix(sizeStr, "MB") {
+		multiplier = 1024 * 1024
+		sizeStr = strings.TrimSuffix(sizeStr, "MB")
+	} else if strings.HasSuffix(sizeStr, "KB") {
+		multiplier = 1024
+		sizeStr = strings.TrimSuffix(sizeStr, "KB")
+	}
+
+	num, err := strconv.ParseFloat(strings.TrimSpace(sizeStr), 64)
+	if err != nil {
+		return 0
+	}
+
+	return int64(num * float64(multiplier))
 }
 
 // scanDirsWithCache scans directories using mtime caching
@@ -1075,31 +1257,6 @@ func (hs *HyperScanner) getCacheDirs() []string {
 		}
 	}
 	return result
-}
-
-// parseSize parses a size string
-func (hs *HyperScanner) parseSize(s string) int64 {
-	s = strings.ToUpper(strings.TrimSpace(s))
-	multiplier := int64(1)
-
-	if strings.HasSuffix(s, "GB") {
-		multiplier = 1024 * 1024 * 1024
-		s = strings.TrimSuffix(s, "GB")
-	} else if strings.HasSuffix(s, "MB") {
-		multiplier = 1024 * 1024
-		s = strings.TrimSuffix(s, "MB")
-	} else if strings.HasSuffix(s, "KB") {
-		multiplier = 1024
-		s = strings.TrimSuffix(s, "KB")
-	}
-
-	var val int64
-	for _, c := range s {
-		if c >= '0' && c <= '9' {
-			val = val*10 + int64(c-'0')
-		}
-	}
-	return val * multiplier
 }
 
 // dirChecksum creates a quick checksum for directory validation

@@ -24,9 +24,10 @@ type Config struct {
 	SecureDeletion   SecureDeletionConfig `yaml:"secure_deletion"`
 	Daemon           *DaemonConfig        `yaml:"daemon,omitempty"`
 	// New configuration sections
-	Dev        DevConfig        `yaml:"dev"`
+	Dev       DevConfig        `yaml:"dev"`
 	LargeFiles LargeFilesConfig `yaml:"large_files_config"`
-	OldFiles   OldFilesConfig   `yaml:"old_files_config"`
+	OldFiles  OldFilesConfig   `yaml:"old_files_config"`
+	AppData   AppDataConfig    `yaml:"app_data"`
 }
 
 // Categories defines which cleanup categories are enabled
@@ -44,6 +45,8 @@ type Categories struct {
 	// Large and old file categories
 	LargeFiles bool `yaml:"large_files"`
 	OldFiles   bool `yaml:"old_files"`
+	// Application data
+	AppData bool `yaml:"app_data"`
 }
 
 // DockerConfig holds Docker cleanup configuration
@@ -146,6 +149,17 @@ type OldFilesConfig struct {
 	MinAgeDays   int      `yaml:"min_age_days"`  // Minimum age in days to flag
 	ScanPaths    []string `yaml:"scan_paths"`    // Paths to scan
 	ExcludePaths []string `yaml:"exclude_paths"` // Paths to exclude
+}
+
+// AppDataConfig holds application data cleanup configuration
+type AppDataConfig struct {
+	Enabled           bool     `yaml:"enabled"`            // Enable app data cleanup
+	MinSize           string   `yaml:"min_size"`           // Minimum size to flag as cleanable (e.g., "500MB")
+	ScanPaths         []string `yaml:"scan_paths"`         // Paths to scan for apps
+	ProtectedPatterns []string `yaml:"protected_patterns"` // App name patterns to never touch (e.g., "*Microsoft*", "*Apple*")
+	CachePatterns     []string `yaml:"cache_patterns"`     // Patterns that indicate safe-to-delete cache (e.g., "*cache*", "*Cache*", "*tmp*")
+	MaxAgeDays        int      `yaml:"max_age_days"`       // Only delete if not accessed in N days
+	ExcludeFiles      []string `yaml:"exclude_files"`      // File patterns to exclude from deletion
 }
 
 // SizeLimits defines size limits for files to consider

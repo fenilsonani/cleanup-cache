@@ -17,6 +17,8 @@ func GetDefault() *Config {
 			// Large and old file categories - enabled (uses Spotlight for speed)
 			LargeFiles: true,
 			OldFiles:   true,
+			// App data - disabled by default - requires explicit opt-in
+			AppData: false,
 		},
 		AgeThresholds: AgeThresholds{
 			Logs:      30, // 30 days
@@ -139,6 +141,50 @@ func GetDefault() *Config {
 			ExcludePaths: []string{
 				"~/Documents/Work",
 				"~/Documents/Important",
+			},
+		},
+		AppData: AppDataConfig{
+			Enabled: false, // Disabled by default - requires explicit opt-in
+			MinSize: "100MB",
+			ScanPaths: []string{
+				"~/Library/Application Support",
+				"~/Library/Caches",
+			},
+			// Protected app patterns - never touch these
+			ProtectedPatterns: []string{
+				"*Microsoft*",     // Office data
+				"*Apple*",         // System apps
+				"com.apple*",      // Apple app data
+				"*Firefox*",       // Browser bookmarks, etc
+				"*Safari*",        // Browser data
+				"*Keychain*",      // Password storage
+				"*Mail*",          // Email data (can be large)
+				"*Photos*",        // Photo library
+				"Splice",          // Music production
+			},
+			// Cache patterns - these are ALWAYS safe to delete
+			CachePatterns: []string{
+				"*cache*",         // Lowercase cache
+				"*Cache*",         // Mixed case
+				"*CACHE*",         // Uppercase
+				"*caches*",        // Caches folder
+				"*tmp*",           // Temp files
+				"*Temp*",          // Temp files
+				"*Build*",         // Build artifacts
+				"*build*",         // Build artifacts
+				"*logs*",          // Log files
+				"*Logs*",          // Log files
+				"go-build",        // Go build cache
+				"bun",             // Bun package manager cache
+				"GeoServices",     // Apple GeoServices
+				".pytest_cache*",  // Python test cache
+				"__pycache__*",    // Python cache
+			},
+			MaxAgeDays: 7, // Only delete if not accessed in 7+ days
+			ExcludeFiles: []string{
+				"*.plist",         // Settings files
+				"*.db",            // Database files
+				"*.sqlite*",       // Database files
 			},
 		},
 	}
