@@ -568,6 +568,11 @@ func cleanFiles(cfg *config.Config, scanResult *scanner.ScanResult, description 
 
 	clnr := cleaner.New(cfg)
 
+	// Don't prompt for sudo if --force is used
+	if force {
+		clnr.SetAskSudo(false)
+	}
+
 	if cfg.DryRun {
 		fmt.Println("\n[DRY RUN MODE] No files will be deleted.")
 	} else {
