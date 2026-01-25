@@ -205,6 +205,11 @@ var cleanCmd = &cobra.Command{
 		// Create cleaner
 		clnr := cleaner.New(cfg)
 
+		// Don't prompt for sudo if --force is used
+		if force {
+			clnr.SetAskSudo(false)
+		}
+
 		if cfg.DryRun {
 			fmt.Println("\n[DRY RUN MODE] No files will be deleted.")
 
