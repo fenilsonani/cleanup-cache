@@ -207,9 +207,10 @@ var cleanCmd = &cobra.Command{
 		// Create cleaner
 		clnr := cleaner.New(cfg)
 
-		// Don't prompt for sudo if --force is used
+		// In force mode: skip interactive prompts and age safety checks
 		if force {
 			clnr.SetAskSudo(false)
+			clnr.SetForce(true)
 		}
 
 		if cfg.DryRun {
@@ -570,9 +571,10 @@ func cleanFiles(cfg *config.Config, scanResult *scanner.ScanResult, description 
 
 	clnr := cleaner.New(cfg)
 
-	// Don't prompt for sudo if --force is used
+	// In force mode: skip interactive prompts and age safety checks
 	if force {
 		clnr.SetAskSudo(false)
+		clnr.SetForce(true)
 	}
 
 	if cfg.DryRun {

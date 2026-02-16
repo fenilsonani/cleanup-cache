@@ -3,6 +3,7 @@ package cleaner
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/fenilsonani/system-cleanup/internal/config"
@@ -30,6 +31,7 @@ type Cleaner struct {
 	sudoManager       *SudoManager
 	manifest          *DeletionManifest
 	askSudo           bool // Whether to prompt for sudo if needed
+	forceMode         bool // Skip age safety checks (--force flag)
 	progressReporter  *progress.ProgressReporter
 }
 
@@ -48,6 +50,11 @@ func New(cfg *config.Config) *Cleaner {
 // SetAskSudo sets whether to prompt for sudo
 func (c *Cleaner) SetAskSudo(ask bool) {
 	c.askSudo = ask
+}
+
+// SetForce enables force mode which skips age safety checks
+func (c *Cleaner) SetForce(force bool) {
+	c.forceMode = force
 }
 
 // SetProgressReporter sets a custom progress reporter
@@ -127,73 +134,90 @@ func (c *Cleaner) Clean(scanResult *scanner.ScanResult) (cleanResult *CleanResul
 
 	// Handle files requiring sudo
 	if len(permReport.RequiresSudo) > 0 {
-		if c.askSudo && c.sudoManager.IsAvailable() {
-			// Ask user for sudo password
-			if err := c.sudoManager.PromptForPassword(); err != nil {
-				// User declined or password wrong, skip sudo files
-				for _, path := range permReport.RequiresSudo {
-					result.SkippedFiles = append(result.SkippedFiles, path)
-					result.SkippedReason[path] = "Requires elevated permissions (sudo declined)"
-				}
-			} else {
-				// Mark that sudo is being used (for cleanup in defer)
-				sudoWasUsed = true
+		sudoAuthenticated := false
 
-				// Start keep-alive goroutine to maintain sudo session
-				stopKeepAlive := make(chan struct{})
-				defer close(stopKeepAlive)
-
-				go func() {
-					ticker := time.NewTicker(4 * time.Minute)
-					defer ticker.Stop()
-					for {
-						select {
-						case <-ticker.C:
-							// Refresh sudo session
-							if err := c.sudoManager.KeepAlive(); err != nil {
-								// Session expired, can't continue
-								return
-							}
-						case <-stopKeepAlive:
-							return
-						}
-					}
-				}()
-
-				// Delete files with sudo using batch operations for better performance
-				result.UsedSudo = true
-
-				// Use batch deletion (100 files per sudo command)
-				succeeded, failed := c.sudoManager.DeleteFiles(permReport.RequiresSudo)
-
-				// Update results and manifest
-				for _, path := range succeeded {
-					file := fileMap[path]
-
-					// Add to manifest
-					c.manifest.Add(file.Path, file.Size, file.Category)
-
-					result.DeletedFiles = append(result.DeletedFiles, file.Path)
-					result.DeletedSize += file.Size
-					result.SudoSucceeded++
-
-					// Report progress
-					c.reportCleanProgress(progress.PhaseCleaning, file.Path, len(result.DeletedFiles), totalFiles, result.DeletedSize, totalSize, true, startTime)
-				}
-
-				for path, err := range failed {
-					delErr := CategorizeError(path, err)
-					result.Errors = append(result.Errors, delErr)
-					result.SkippedFiles = append(result.SkippedFiles, path)
-					result.SkippedReason[path] = delErr.UserMessage()
-					result.SudoFailed++
+		if c.sudoManager.IsAvailable() {
+			// Check if there's already an active sudo session (passwordless or cached)
+			if c.sudoManager.CheckSession() {
+				// Existing session available, use it without prompting
+				c.sudoManager.mu.Lock()
+				c.sudoManager.authenticated = true
+				c.sudoManager.sessionExpiry = time.Now().Add(5 * time.Minute)
+				c.sudoManager.mu.Unlock()
+				sudoAuthenticated = true
+			} else if c.askSudo {
+				// No cached session, prompt for password if allowed
+				if err := c.sudoManager.PromptForPassword(); err != nil {
+					// User declined or password wrong
+					sudoAuthenticated = false
+				} else {
+					sudoAuthenticated = true
 				}
 			}
-		} else {
-			// Sudo not available or not asking, skip these files
-			for _, path := range permReport.RequiresSudo {
+		}
+
+		if sudoAuthenticated {
+			// Mark that sudo is being used (for cleanup in defer)
+			sudoWasUsed = true
+
+			// Start keep-alive goroutine to maintain sudo session
+			stopKeepAlive := make(chan struct{})
+			defer close(stopKeepAlive)
+
+			go func() {
+				ticker := time.NewTicker(4 * time.Minute)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ticker.C:
+						// Refresh sudo session
+						if err := c.sudoManager.KeepAlive(); err != nil {
+							// Session expired, can't continue
+							return
+						}
+					case <-stopKeepAlive:
+						return
+					}
+				}
+			}()
+
+			// Delete files with sudo using batch operations for better performance
+			result.UsedSudo = true
+
+			// Use batch deletion (50 files per sudo command)
+			succeeded, failed := c.sudoManager.DeleteFiles(permReport.RequiresSudo)
+
+			// Update results and manifest
+			for _, path := range succeeded {
+				file := fileMap[path]
+
+				// Add to manifest
+				c.manifest.Add(file.Path, file.Size, file.Category)
+
+				result.DeletedFiles = append(result.DeletedFiles, file.Path)
+				result.DeletedSize += file.Size
+				result.SudoSucceeded++
+
+				// Report progress
+				c.reportCleanProgress(progress.PhaseCleaning, file.Path, len(result.DeletedFiles), totalFiles, result.DeletedSize, totalSize, true, startTime)
+			}
+
+			for path, err := range failed {
+				delErr := CategorizeError(path, err)
+				result.Errors = append(result.Errors, delErr)
 				result.SkippedFiles = append(result.SkippedFiles, path)
-				result.SkippedReason[path] = "Requires elevated permissions"
+				result.SkippedReason[path] = delErr.UserMessage()
+				result.SudoFailed++
+			}
+		} else {
+			// No sudo available - try deleting with normal permissions (best effort)
+			for _, path := range permReport.RequiresSudo {
+				file := fileMap[path]
+				c.reportCleanProgress(progress.PhaseCleaning, file.Path, len(result.DeletedFiles), totalFiles, result.DeletedSize, totalSize, false, startTime)
+
+				if err := c.deleteFileNormalWithRetry(file, result); err != nil {
+					result.Errors = append(result.Errors, err)
+				}
 			}
 		}
 	}
@@ -283,11 +307,13 @@ func (c *Cleaner) deleteFileNormal(file scanner.FileInfo, result *CleanResult) *
 		}
 	}
 
-	minAge := time.Duration(c.config.MinFileAge) * time.Hour
-	if time.Since(info.ModTime()) < minAge {
-		result.SkippedFiles = append(result.SkippedFiles, file.Path)
-		result.SkippedReason[file.Path] = "File too new (safety check)"
-		return nil
+	if !c.forceMode {
+		minAge := time.Duration(c.config.MinFileAge) * time.Hour
+		if time.Since(info.ModTime()) < minAge {
+			result.SkippedFiles = append(result.SkippedFiles, file.Path)
+			result.SkippedReason[file.Path] = "File too new (safety check)"
+			return nil
+		}
 	}
 
 	// Add to manifest before deleting
@@ -300,6 +326,21 @@ func (c *Cleaner) deleteFileNormal(file scanner.FileInfo, result *CleanResult) *
 	} else {
 		deleteErr = os.Remove(file.Path)
 	}
+
+	// If permission denied and running as root, try clearing macOS immutable flags
+	if deleteErr != nil && os.IsPermission(deleteErr) && c.permissionManager.IsRunningAsRoot() {
+		// Clear immutable flags and extended attributes
+		exec.Command("chflags", "-R", "nouchg", file.Path).Run()
+		exec.Command("xattr", "-cr", file.Path).Run()
+
+		// Retry deletion
+		if info.IsDir() {
+			deleteErr = os.RemoveAll(file.Path)
+		} else {
+			deleteErr = os.Remove(file.Path)
+		}
+	}
+
 	if deleteErr != nil {
 		delErr := CategorizeError(file.Path, deleteErr)
 		result.SkippedFiles = append(result.SkippedFiles, file.Path)
@@ -348,11 +389,13 @@ func (c *Cleaner) deleteFileSudo(file scanner.FileInfo, result *CleanResult) *De
 		}
 	}
 
-	minAge := time.Duration(c.config.MinFileAge) * time.Hour
-	if time.Since(info.ModTime()) < minAge {
-		result.SkippedFiles = append(result.SkippedFiles, file.Path)
-		result.SkippedReason[file.Path] = "File too new (safety check)"
-		return nil
+	if !c.forceMode {
+		minAge := time.Duration(c.config.MinFileAge) * time.Hour
+		if time.Since(info.ModTime()) < minAge {
+			result.SkippedFiles = append(result.SkippedFiles, file.Path)
+			result.SkippedReason[file.Path] = "File too new (safety check)"
+			return nil
+		}
 	}
 
 	// Add to manifest

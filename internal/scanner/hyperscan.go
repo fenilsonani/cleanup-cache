@@ -279,8 +279,52 @@ func (hs *HyperScanner) ScanCategory(category string) *ScanResult {
 
 // scanCacheCategory scans cache directories with mtime optimization
 func (hs *HyperScanner) scanCacheCategory() {
-	dirs := hs.getCacheDirs()
-	hs.scanDirsWithCache(dirs, "cache")
+	// General user cache dirs - walk for individual files
+	home, _ := os.UserHomeDir()
+	generalCacheDirs := []string{
+		filepath.Join(home, ".cache"),
+		filepath.Join(home, ".npm", "_cacache"),
+		filepath.Join(home, "go", "pkg", "mod", "cache"),
+	}
+
+	// Only add system cache dirs when running as root
+	if os.Getuid() == 0 {
+		for _, d := range hs.platformInfo.CacheDirs {
+			generalCacheDirs = append(generalCacheDirs, d)
+		}
+	}
+
+	// Deduplicate general dirs
+	seen := make(map[string]bool)
+	dedupedDirs := make([]string, 0)
+	for _, d := range generalCacheDirs {
+		if seen[d] {
+			continue
+		}
+		seen[d] = true
+		if _, err := os.Stat(d); err == nil {
+			dedupedDirs = append(dedupedDirs, d)
+		}
+	}
+	hs.scanDirsWithCache(dedupedDirs, "cache")
+
+	// SystemCaches: treat as directory-level items (like Docker)
+	// These are known-cleanable cache directories that should be removed as a whole
+	for _, dir := range hs.platformInfo.SystemCaches {
+		if !strings.HasPrefix(dir, home) && os.Getuid() != 0 {
+			continue // Skip system dirs when not root
+		}
+		if seen[dir] {
+			continue
+		}
+		seen[dir] = true
+		if info, err := os.Stat(dir); err == nil {
+			totalSize := hs.getDirSize(dir)
+			if totalSize > 0 {
+				hs.addResult(dir, "cache", totalSize, info.ModTime())
+			}
+		}
+	}
 }
 
 // scanTempCategory scans temp directories
@@ -1239,26 +1283,6 @@ func (hs *HyperScanner) addCachedResult(cached *CachedDirInfo) {
 }
 
 // getCacheDirs returns cache directories
-func (hs *HyperScanner) getCacheDirs() []string {
-	home, _ := os.UserHomeDir()
-	dirs := []string{
-		filepath.Join(home, "Library", "Caches"),
-		filepath.Join(home, ".cache"),
-		filepath.Join(home, ".npm", "_cacache"),
-		filepath.Join(home, "go", "pkg", "mod", "cache"),
-	}
-	dirs = append(dirs, hs.platformInfo.CacheDirs...)
-	dirs = append(dirs, hs.platformInfo.SystemCaches...)
-
-	result := make([]string, 0, len(dirs))
-	for _, d := range dirs {
-		if _, err := os.Stat(d); err == nil {
-			result = append(result, d)
-		}
-	}
-	return result
-}
-
 // dirChecksum creates a quick checksum for directory validation
 func dirChecksum(path string) string {
 	info, err := os.Stat(path)
